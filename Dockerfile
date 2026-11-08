@@ -9,9 +9,14 @@ RUN npm run build
 # ---------- runtime ----------
 FROM node:24-slim
 WORKDIR /app
+# Chromium voor schermafbeeldingen die Claude via MCP opvraagt (WebGL via SwiftShader)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium fonts-dejavu-core ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production \
     DATA_DIR=/data \
-    PORT=8787
+    PORT=8787 \
+    CHROME_PATH=/usr/bin/chromium
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist

@@ -10,6 +10,7 @@ import { useApp } from '../store';
 import { viewState } from '../viewState';
 import { roomEnvironment } from './environment';
 import { installDebugBridge } from './debug';
+import { renderParams } from '../renderMode';
 import { FurnitureLayer } from './Furniture';
 import { HouseView } from './HouseView';
 
@@ -24,6 +25,33 @@ function houseExtent(house: House) {
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
     }
   return { center: new THREE.Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2), size: Math.max(x1 - x0, z1 - z0) };
+}
+
+function roomExtent(house: House, roomId: string) {
+  for (const level of house.levels)
+    for (const r of level.rooms)
+      if (r.id === roomId) {
+        const xs = r.polygon.map((p) => p[0]);
+        const zs = r.polygon.map((p) => p[1]);
+        const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+        return { center: new THREE.Vector3((x0 + x1) / 2, level.elevation, (z0 + z1) / 2), size: Math.max(x1 - x0, z1 - z0, 3) };
+      }
+  return null;
+}
+
+/** Meldt aan de server (headless browser) dat de afbeelding klaar is. */
+function RenderReady() {
+  const loaded = useApp((s) => s.loaded);
+  const frames = useRef(0);
+  const since = useRef(0);
+  useFrame(() => {
+    if (!renderParams || !loaded) return;
+    if (!since.current) since.current = performance.now();
+    frames.current += 1;
+    // software-rendering is traag: een paar volledige frames na het laden is genoeg
+    if (frames.current >= 4 && performance.now() - since.current > 800) (window as unknown as { __renderReady: boolean }).__renderReady = true;
+  });
+  return null;
 }
 
 /** zichtbare hoogte (m) in beeld, om tussen iso-zoom en perspectief-afstand te wisselen */
@@ -62,9 +90,11 @@ function CameraRig({ house }: { house: House }) {
     if (initFor.current !== camera) {
       const first = initFor.current === null;
       if (first) {
-        const { center, size: s } = houseExtent(house);
-        visibleHeight.value = s * 1.25 * Math.max(1, size.height / size.width);
-        place(c, center, useApp.getState().azimuth, POLAR);
+        const st = useApp.getState();
+        const focus = st.focusRoom ? roomExtent(house, st.focusRoom) : null;
+        const { center, size: s } = focus ?? houseExtent(house);
+        visibleHeight.value = s * (focus ? 1.6 : 1.25) * Math.max(1, size.height / size.width);
+        place(c, center, st.azimuth, camera.type === 'PerspectiveCamera' ? 0.85 : POLAR);
       } else {
         place(c, viewState.target.clone(), useApp.getState().azimuth, Math.min(c.getPolarAngle(), camera.type === 'OrthographicCamera' ? 1.25 : 1.5));
       }
@@ -190,7 +220,7 @@ function SunAndSky({ house }: { house: House }) {
         color={sunColor}
         intensity={4.2 * sunStrength}
         castShadow={sunStrength > 0}
-        shadow-mapSize={[mobile ? 2048 : 4096, mobile ? 2048 : 4096]}
+        shadow-mapSize={[mobile || renderParams ? 2048 : 4096, mobile || renderParams ? 2048 : 4096]}
         shadow-camera-left={-24}
         shadow-camera-right={24}
         shadow-camera-top={24}
@@ -209,7 +239,7 @@ function Effects() {
   const mobile = isMobile();
   return (
     <EffectComposer multisampling={0} enableNormalPass={false}>
-      <N8AO aoRadius={0.8} distanceFalloff={0.6} intensity={2.2} quality={mobile ? 'performance' : 'medium'} />
+      <N8AO aoRadius={0.8} distanceFalloff={0.6} intensity={2.2} quality={mobile || renderParams ? 'performance' : 'medium'} />
       <SMAA />
     </EffectComposer>
   );
@@ -220,7 +250,7 @@ export function Scene({ house }: { house: House }) {
   return (
     <Canvas
       shadows
-      dpr={[1, 2]}
+      dpr={renderParams ? 1 : [1, 2]}
       gl={{ antialias: false, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       onContextMenu={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
@@ -234,6 +264,7 @@ export function Scene({ house }: { house: House }) {
         <FurnitureLayer house={house} />
       </Suspense>
       <Effects />
+      <RenderReady />
     </Canvas>
   );
 }

@@ -32,12 +32,10 @@ import {
   type PublicUser,
 } from './auth';
 
+import { origin, rpID, secure } from './config';
+
 export const COOKIE = 'hd_session';
 
-const publicUrl = new URL(process.env.PUBLIC_URL ?? 'http://localhost:5173');
-const rpID = publicUrl.hostname;
-const origin = publicUrl.origin;
-const secure = publicUrl.protocol === 'https:';
 
 export type AuthEnv = { Variables: { user: PublicUser } };
 

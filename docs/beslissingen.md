@@ -76,13 +76,13 @@ Antwoorden uit de vragenronde, als basis voor het ontwerp.
 
 Verhuizing binnen 2 maanden (vanaf 2026-11-08, dus vóór begin januari 2027). Zo snel mogelijk iets bruikbaars om mee te winkelen; daarna uitbreiden.
 
-**Fase 1 – Bruikbaar huis + bibliotheek**
+**Fase 1 – Bruikbaar huis + bibliotheek** ✅
 - Huismodel (JSON) uit de plattegronden: BG, 1e, zolder (met schuin dak), tuin/overkapping/berging/carport eenvoudig.
 - Isometrische weergave met wegvallende muren en verdiepingkeuze.
 - Recept-renderer voor meubels; bibliotheek; plaatsen/draaien/verwijderen (muis én touch), magnetisch tegen muren.
 - Login voor twee gebruikers; deploy op Dokploy achter Cloudflare.
 
-**Fase 2 – Claude-koppeling**
+**Fase 2 – Claude-koppeling** ✅ (2026-11-08)
 - Remote MCP-server (OAuth) met tools: meubel uit recept toevoegen/aanpassen, bibliotheek doorzoeken, plaatsen, schermafbeelding van een ruimte.
 - Live synchronisatie tussen apparaten (WebSocket).
 

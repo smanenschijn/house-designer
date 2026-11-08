@@ -3,59 +3,19 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { House } from '../../shared/house';
 import type { Item, Placement } from '../../shared/recipe';
-import { corners, rectsOverlap, snapToWalls, wallRects } from '../../shared/placement';
+import { snapToWalls } from '../../shared/placement';
+import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
 import { attempt, useApp } from '../store';
 import { buildRecipe, disposeGroup } from './recipeMesh';
 
 const DEG = Math.PI / 180;
 
-function rectOf(p: Placement, it: Item) {
-  return { x: p.x, z: p.z, hw: it.recipe.size.width / 2, hd: it.recipe.size.depth / 2, rot: p.rotation };
-}
-
-/** welke plaatsingen botsen (met elkaar of met muren)? vloerkleden tellen niet mee */
+/** welke plaatsingen botsen (met elkaar, muren of vaste inbouw)? vloerkleden tellen niet mee */
 export function useCollisions(house: House, levelId: string | null) {
   const placements = useApp((s) => s.placements);
   const items = useApp((s) => s.items);
-  return useMemo(() => {
-    const out = new Set<string>();
-    if (!levelId) return out;
-    const level = house.levels.find((l) => l.id === levelId);
-    if (!level) return out;
-    const itemMap = new Map(items.map((i) => [i.id, i]));
-    const list = placements
-      .filter((p) => p.levelId === levelId)
-      .map((p) => ({ p, it: itemMap.get(p.itemId) }))
-      .filter((x): x is { p: Placement; it: Item } => !!x.it && x.it.recipe.size.height > 0.03);
-    const polys = list.map(({ p, it }) => corners(rectOf(p, it)));
-    const walls = level.walls.flatMap((w) => wallRects(w));
-    // vaste inbouw op vloerniveau (keuken, kasten, trap, …) telt ook als obstakel
-    for (const fx of level.fixtures)
-      if ((fx.y ?? 0) < 1.0 && fx.recipe.size.height > 0.05)
-        walls.push(
-          corners({ x: fx.position[0], z: fx.position[1], hw: fx.recipe.size.width / 2, hd: fx.recipe.size.depth / 2, rot: fx.rotation ?? 0 }),
-        );
-    list.forEach(({ p, it }, i) => {
-      const elevated = (p.y ?? 0) + (it.recipe.elevation ?? 0);
-      for (let j = i + 1; j < list.length; j++) {
-        const other = list[j];
-        const oElev = (other.p.y ?? 0) + (other.it.recipe.elevation ?? 0);
-        // verticaal gescheiden (bijv. wandplank boven dressoir)
-        if (elevated >= oElev + other.it.recipe.size.height - 0.01 || oElev >= elevated + it.recipe.size.height - 0.01) continue;
-        if (rectsOverlap(polys[i], polys[j], 0.01)) {
-          out.add(p.id);
-          out.add(other.p.id);
-        }
-      }
-      for (const wr of walls)
-        if (rectsOverlap(polys[i], wr, 0.01)) {
-          out.add(p.id);
-          break;
-        }
-    });
-    return out;
-  }, [house, levelId, placements, items]);
+  return useMemo(() => new Set(levelId ? findCollisions(house, levelId, placements, items).keys() : []), [house, levelId, placements, items]);
 }
 
 function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {

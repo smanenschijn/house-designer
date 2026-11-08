@@ -25,6 +25,28 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 | Verfijnen | pijltjes (1 cm), Shift+pijltjes (10 cm) | — |
 | Snap tijdelijk uit | Alt ingedrukt houden | 🧲-knop |
 
+## Claude koppelen (fase 2)
+
+1. Ga in claude.ai naar **Instellingen → Connectors → Eigen connector toevoegen** en vul in: `https://huis.<jouwdomein>/mcp` (staat ook in de app onder *Account → Claude koppelen*).
+2. Claude stuurt je naar de site: log in (wachtwoord of passkey) en klik **Toestaan**.
+3. Vraag Claude bijvoorbeeld: *"Maak de IKEA Söderhamn 3-zits in grijs na en zet hem in de woonkamer tegen de muur met de sierhaard."*
+
+Wat Claude kan (MCP-tools):
+
+| Tool | Doet |
+|---|---|
+| `get_house` | plattegrond met maten, ramen/deuren per kamer, vaste inbouw, coördinatenstelsel |
+| `list_furniture_library`, `get_furniture_item`, `list_templates` | bibliotheek en sjablonen bekijken |
+| `create_furniture_item` | meubel maken uit een 3D-recept (met maatcontrole) |
+| `create_furniture_from_template` | snel een standaardmeubel maken |
+| `update_furniture_item`, `delete_furniture_item` | aanpassen of verwijderen |
+| `place_furniture`, `move_furniture`, `remove_furniture`, `list_placed_furniture` | inrichten, met muursnap en botsingsmelding |
+| `render_view` | afbeelding van een kamer/verdieping (iso of perspectief, met zonnestand) |
+
+Alle wijzigingen verschijnen direct in de app bij iedereen die hem open heeft (Server-Sent Events), met een melding wie wat deed. Koppelingen intrekken kan onder *Account → Claude koppelen*.
+
+Techniek: OAuth 2.1 met dynamische clientregistratie en PKCE, tokens van 1 uur met roterende refresh tokens (90 dagen). `render_view` gebruikt de Chromium in de container (software-WebGL); een afbeelding duurt 20–40 seconden.
+
 ## Lokaal draaien
 
 ```bash

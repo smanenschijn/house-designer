@@ -17,6 +17,7 @@ export function TopBar({ house }: { house: House }) {
   const camMode = useApp((s) => s.camMode);
   const setCamMode = useApp((s) => s.setCamMode);
   const showLabels = useApp((s) => s.showLabels);
+  const online = useApp((s) => s.online);
   const setShowLabels = useApp((s) => s.setShowLabels);
 
   // kompas: noordvector geprojecteerd op scherm-rechts en scherm-boven
@@ -99,6 +100,13 @@ export function TopBar({ house }: { house: House }) {
         <Icon name="library" />
         Bibliotheek
       </button>
+      {online
+        .filter((o) => o.id !== user?.id)
+        .map((o) => (
+          <span key={o.id} className="peer glass" title={`${o.name} is online`}>
+            {o.name.slice(0, 1).toUpperCase()}
+          </span>
+        ))}
       {user && (
         <button className={`user glass ${panel === 'account' ? 'on' : ''}`} title="Account en gebruikers" onClick={() => setPanel(panel === 'account' ? null : 'account')}>
           {user.displayName.slice(0, 1).toUpperCase()}

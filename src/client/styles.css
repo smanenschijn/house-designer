@@ -259,6 +259,25 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   font-size: 13.5px;
 }
 
+.notice {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 999px;
+  z-index: 20;
+  font-size: 13px;
+  color: var(--mint);
+  animation: panel-in 0.2s ease-out;
+}
+.peer {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--mint);
+  box-shadow: 0 0 0 2px var(--sage-deep), var(--shadow); position: relative;
+}
+.peer::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: #7fd39b; border: 2px solid var(--black); }
+
 /* ---------- inloggen ---------- */
 .login {
   min-height: 100%;
@@ -287,6 +306,15 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .acc-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); }
 .acc-row strong { font-weight: 600; }
 .acc-form { display: grid; gap: 10px; }
+
+.copy-row { display: flex; gap: 8px; align-items: center; }
+.copy-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 8px 10px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.04); border: 1px solid var(--line); color: var(--mint); }
+.consent { width: min(420px, 100%); border-radius: 26px; padding: 34px 28px 28px; display: grid; gap: 12px; }
+.consent h1 { margin: 0; font-family: var(--serif); font-size: 34px; font-weight: 600; line-height: 1.05; }
+.consent p { margin: 0; }
+.consent-list { margin: 4px 0; padding-left: 18px; color: var(--ink); display: grid; gap: 4px; font-size: 13.5px; }
+.consent-list li::marker { color: var(--sage); }
+.render-mode .hint, .render-mode .topbar { display: none; }
 
 /* ---------- zon ---------- */
 .sunctl { position: relative; }

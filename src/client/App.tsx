@@ -9,6 +9,8 @@ import { Login } from './ui/Login';
 import { LibraryPanel } from './ui/LibraryPanel';
 import { SelectionBar } from './ui/SelectionBar';
 import { TopBar } from './ui/TopBar';
+import { Consent } from './ui/Consent';
+import { oauthQuery, renderParams } from './renderMode';
 
 const house = waalstraat16;
 
@@ -30,12 +32,38 @@ export function App() {
   useEffect(() => {
     if (!user) return;
     useApp.getState().load().catch((e) => useApp.getState().setError(String(e)));
-    // eenvoudige live-synchronisatie: elke paar seconden kijken of er iets veranderd is
+    if (renderParams) return; // afbeelding voor Claude: geen live-verbinding nodig
+    // live-updates via Server-Sent Events (EventSource verbindt zelf opnieuw na een onderbreking)
+    const es = new EventSource('/api/events');
+    const refresh = () => useApp.getState().poll().catch(() => undefined);
+    es.addEventListener('hello', (e) => {
+      const d = JSON.parse((e as MessageEvent).data);
+      useApp.getState().setOnline(d.online);
+      refresh();
+    });
+    es.addEventListener('change', (e) => {
+      const d = JSON.parse((e as MessageEvent).data) as { by?: string; what?: string };
+      const me = useApp.getState().user?.displayName;
+      if (d.by && d.by !== me) useApp.getState().setNotice(d.what ? `${d.by}: ${d.what}` : `${d.by} heeft iets aangepast`);
+      refresh();
+    });
+    es.addEventListener('presence', (e) => useApp.getState().setOnline(JSON.parse((e as MessageEvent).data)));
+    // vangnet als de stream ergens wordt gebufferd
     const t = setInterval(() => {
-      if (document.visibilityState === 'visible') useApp.getState().poll().catch(() => undefined);
-    }, 3000);
-    return () => clearInterval(t);
+      if (document.visibilityState === 'visible') refresh();
+    }, 30000);
+    return () => {
+      es.close();
+      clearInterval(t);
+    };
   }, [user]);
+
+  const notice = useApp((s) => s.notice);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => useApp.getState().setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   useEffect(() => {
     if (!error) return;
@@ -45,6 +73,15 @@ export function App() {
 
   if (!checked) return null;
   if (!user) return <Login onLogin={(u) => useApp.getState().setUser(u)} />;
+  if (oauthQuery) return <Consent query={oauthQuery} />;
+  if (renderParams)
+    return (
+      <div className="app render-mode">
+        <div className="viewport">
+          <Scene house={house} />
+        </div>
+      </div>
+    );
 
   return (
     <div className={`app ${panel ? 'with-panel' : ''}`}>
@@ -57,6 +94,7 @@ export function App() {
       {panel === 'library' && <LibraryPanel house={house} />}
       {panel === 'editor' && <ItemEditor />}
       {panel === 'account' && <AccountPanel />}
+      {notice && <div className="notice glass">{notice}</div>}
       {error && (
         <div className="toast" onClick={() => useApp.getState().setError(null)}>
           {error}

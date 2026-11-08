@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Item, Placement } from '../shared/recipe';
 import { api, type User } from './api';
 import type { WallMode } from './three/houseMesh';
+import { renderParams } from './renderMode';
 
 export type LevelView = number | 'all';
 
@@ -29,6 +30,10 @@ interface AppState {
   /** iso = isometrisch (orthografisch), persp = perspectief */
   camMode: 'iso' | 'persp';
   showLabels: boolean;
+  online: { id: string; name: string }[];
+  /** kamer om op in te zoomen bij het openen (rendermodus) */
+  focusRoom: string | null;
+  notice: string | null;
   /** zon: datum (YYYY-MM-DD) en tijd in minuten na middernacht (lokale tijd) */
   sun: { date: string; minutes: number };
 
@@ -46,6 +51,8 @@ interface AppState {
   setDragging: (id: string | null) => void;
   setCamMode: (m: 'iso' | 'persp') => void;
   setShowLabels: (v: boolean) => void;
+  setOnline: (o: { id: string; name: string }[]) => void;
+  setNotice: (n: string | null) => void;
   setSun: (patch: Partial<{ date: string; minutes: number }>) => void;
 
   upsertItem: (it: Item) => void;
@@ -82,20 +89,26 @@ export const useApp = create<AppState>((set, get) => ({
   loaded: false,
   error: null,
 
-  level: 0,
+  level: renderParams?.level ?? 0,
   wallMode: 'cutaway',
   selectedId: null,
   dragging: null,
   panel: null,
   editingItemId: null,
   // camera linksvoor (straat + carportzijde)
-  azimuth: -Math.PI / 4,
+  azimuth: renderParams ? (renderParams.azimuth * Math.PI) / 180 : -Math.PI / 4,
   rotateRequest: 0,
   focusRequest: 0,
   snap: true,
-  camMode: 'iso',
-  showLabels: readPref('showLabels', true),
-  sun: { date: new Date().toISOString().slice(0, 10), minutes: 14 * 60 },
+  camMode: renderParams?.camera ?? 'iso',
+  showLabels: renderParams ? true : readPref('showLabels', true),
+  online: [],
+  notice: null,
+  focusRoom: renderParams?.room ?? null,
+  sun: {
+    date: renderParams?.date ?? new Date().toISOString().slice(0, 10),
+    minutes: renderParams?.time ? Number(renderParams.time.split(':')[0]) * 60 + Number(renderParams.time.split(':')[1]) : 14 * 60,
+  },
 
   setUser: (user) => set({ user }),
   load: async () => {
@@ -128,6 +141,8 @@ export const useApp = create<AppState>((set, get) => ({
   setSnap: (snap) => set({ snap }),
   setDragging: (dragging) => set({ dragging }),
   setCamMode: (camMode) => set({ camMode }),
+  setOnline: (online) => set({ online }),
+  setNotice: (notice) => set({ notice }),
   setShowLabels: (showLabels) => {
     writePref('showLabels', showLabels);
     set({ showLabels });

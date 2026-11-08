@@ -30,14 +30,17 @@ export function AccountPanel() {
   const me = useApp((s) => s.user);
   const [account, setAccount] = useState<Account | null>(null);
   const [users, setUsers] = useState<UserDetail[]>([]);
+  const [connections, setConnections] = useState<{ clientId: string; name: string; createdAt: string; lastUsed: string | null }[]>([]);
+  const mcpUrl = `${location.origin}/mcp`;
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [a, u] = await Promise.all([api.account(), api.users()]);
+      const [a, u, cons] = await Promise.all([api.account(), api.users(), fetch('/api/oauth/connections').then((r) => r.json())]);
       setAccount(a);
       setUsers(u);
+      setConnections(Array.isArray(cons) ? cons : []);
     } catch (e) {
       setErr(errText(e));
     }
@@ -96,6 +99,44 @@ export function AccountPanel() {
         <section className="acc-section">
           <h3>{account?.displayName ?? me?.displayName}</h3>
           <div className="muted small-text">Ingelogd als {account?.username ?? me?.username}</div>
+        </section>
+
+        <section className="acc-section">
+          <h3>Claude koppelen</h3>
+          <p className="muted small-text">
+            Voeg in claude.ai (Instellingen → Connectors → Eigen connector toevoegen) deze URL toe. Daarna log je hier in en geef je toestemming. Claude kan dan
+            meubels voor jullie maken, plaatsen en bekijken.
+          </p>
+          <div className="copy-row">
+            <code>{mcpUrl}</code>
+            <button
+              className="small"
+              onClick={() => {
+                navigator.clipboard?.writeText(mcpUrl).then(() => setToast('URL gekopieerd'), () => undefined);
+              }}
+            >
+              <Icon name="copy" size={14} /> Kopieer
+            </button>
+          </div>
+          {connections.map((c) => (
+            <div className="acc-row" key={c.clientId}>
+              <div>
+                <strong>{c.name}</strong>
+                <div className="muted small-text">
+                  Gekoppeld {fmtDate(c.createdAt)} · laatst gebruikt {fmtDate(c.lastUsed)}
+                </div>
+              </div>
+              <button
+                className="small danger"
+                onClick={() =>
+                  confirm(`Koppeling met “${c.name}” intrekken?`) &&
+                  run(() => fetch(`/api/oauth/connections/${encodeURIComponent(c.clientId)}`, { method: 'DELETE' }), 'Koppeling ingetrokken')
+                }
+              >
+                Intrekken
+              </button>
+            </div>
+          ))}
         </section>
 
         <section className="acc-section">

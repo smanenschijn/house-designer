@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Item, ItemInput, Placement, PlacementInput } from '../shared/recipe';
 import { ItemInputSchema, PlacementInputSchema } from '../shared/recipe';
+import { notifyChange } from './events';
 
 const DB_PATH = resolve(process.env.DATA_DIR ?? 'data', 'house.db');
 mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -54,6 +55,7 @@ export function getVersion(): number {
 export function bumpVersion(): number {
   const v = getVersion() + 1;
   db.prepare(`INSERT INTO meta(key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(String(v));
+  notifyChange(v);
   return v;
 }
 

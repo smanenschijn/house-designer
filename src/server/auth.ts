@@ -159,11 +159,11 @@ export function ensureFirstUser() {
 // ---------- sessies ----------
 const SESSION_MS = 60 * 864e5;
 
-export function createSession(userId: string): string {
+export function createSession(userId: string, ttl = SESSION_MS): string {
   const token = randomToken();
   const now = Date.now();
   db.prepare(`INSERT INTO auth_sessions (token_hash, user_id, created_at, last_used, expires_at) VALUES (?, ?, ?, ?, ?)`).run(
-    sha256(token), userId, now, now, now + SESSION_MS,
+    sha256(token), userId, now, now, now + ttl,
   );
   return token;
 }
