@@ -22,6 +22,7 @@ const PATHS = {
   logout: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10',
   north: 'M12 3l5 15-5-3-5 3 5-15Z',
   layers: 'M12 3 2 8l10 5 10-5-10-5ZM2 13l10 5 10-5M2 17.5l10 5 10-5',
+  tag: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM7.5 7.5h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;

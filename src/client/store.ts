@@ -28,6 +28,7 @@ interface AppState {
   snap: boolean;
   /** iso = isometrisch (orthografisch), persp = perspectief */
   camMode: 'iso' | 'persp';
+  showLabels: boolean;
   /** zon: datum (YYYY-MM-DD) en tijd in minuten na middernacht (lokale tijd) */
   sun: { date: string; minutes: number };
 
@@ -44,6 +45,7 @@ interface AppState {
   setSnap: (s: boolean) => void;
   setDragging: (id: string | null) => void;
   setCamMode: (m: 'iso' | 'persp') => void;
+  setShowLabels: (v: boolean) => void;
   setSun: (patch: Partial<{ date: string; minutes: number }>) => void;
 
   upsertItem: (it: Item) => void;
@@ -52,6 +54,23 @@ interface AppState {
   patchPlacementLocal: (id: string, patch: Partial<Placement>) => void;
   removePlacement: (id: string) => void;
   setError: (e: string | null) => void;
+}
+
+/** kleine voorkeuren per apparaat (mag ontbreken, bijv. in privévensters) */
+function readPref<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(`hd:${key}`);
+    return v === null ? fallback : (JSON.parse(v) as T);
+  } catch {
+    return fallback;
+  }
+}
+function writePref(key: string, value: unknown) {
+  try {
+    localStorage.setItem(`hd:${key}`, JSON.stringify(value));
+  } catch {
+    /* geen opslag beschikbaar */
+  }
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -75,6 +94,7 @@ export const useApp = create<AppState>((set, get) => ({
   focusRequest: 0,
   snap: true,
   camMode: 'iso',
+  showLabels: readPref('showLabels', true),
   sun: { date: new Date().toISOString().slice(0, 10), minutes: 14 * 60 },
 
   setUser: (user) => set({ user }),
@@ -108,6 +128,10 @@ export const useApp = create<AppState>((set, get) => ({
   setSnap: (snap) => set({ snap }),
   setDragging: (dragging) => set({ dragging }),
   setCamMode: (camMode) => set({ camMode }),
+  setShowLabels: (showLabels) => {
+    writePref('showLabels', showLabels);
+    set({ showLabels });
+  },
   setSun: (patch) => set((s) => ({ sun: { ...s.sun, ...patch } })),
 
   upsertItem: (it) =>

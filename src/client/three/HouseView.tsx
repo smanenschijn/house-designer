@@ -22,13 +22,14 @@ import { brickMaterial, groundMaterial, paintMaterial, partyMaterial, skirtingMa
 /** cutaway alleen opnieuw berekenen per 22,5°-sector */
 const sector = (az: number) => Math.round(az / (Math.PI / 8));
 
-function LevelMesh({ house, index, active, wallMode, azKey, showAll }: {
+function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels }: {
   house: House;
   index: number;
   active: boolean;
   wallMode: WallMode;
   azKey: number;
   showAll: boolean;
+  showLabels: boolean;
 }) {
   const level = house.levels[index];
   const objects = useMemo(() => {
@@ -69,7 +70,7 @@ function LevelMesh({ house, index, active, wallMode, azKey, showAll }: {
       <primitive object={objects.openings} />
       <primitive object={objects.floors} />
       <primitive object={objects.fixtures} />
-      {active && !showAll &&
+      {active && !showAll && showLabels &&
         level.rooms
           .filter((r) => r.label)
           .map((r) => (
@@ -85,6 +86,7 @@ export function HouseView({ house }: { house: House }) {
   const level = useApp((s) => s.level);
   const wallMode = useApp((s) => s.wallMode);
   const azimuth = useApp((s) => s.azimuth);
+  const showLabels = useApp((s) => s.showLabels);
   const azKey = sector(azimuth);
   const showAll = level === 'all';
   const activeIndex = showAll ? house.levels.length - 1 : level;
@@ -111,7 +113,7 @@ export function HouseView({ house }: { house: House }) {
       <primitive object={shadowProxy} />
       {house.levels.map((_, i) =>
         i <= activeIndex ? (
-          <LevelMesh key={i} house={house} index={i} active={i === activeIndex} wallMode={wallMode} azKey={azKey} showAll={showAll} />
+          <LevelMesh key={i} house={house} index={i} active={i === activeIndex} wallMode={wallMode} azKey={azKey} showAll={showAll} showLabels={showLabels} />
         ) : null,
       )}
       {showAll && <primitive object={roofs} />}

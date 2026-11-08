@@ -16,6 +16,8 @@ export function TopBar({ house }: { house: House }) {
   const azimuth = useApp((s) => s.azimuth);
   const camMode = useApp((s) => s.camMode);
   const setCamMode = useApp((s) => s.setCamMode);
+  const showLabels = useApp((s) => s.showLabels);
+  const setShowLabels = useApp((s) => s.setShowLabels);
 
   // kompas: noordvector geprojecteerd op scherm-rechts en scherm-boven
   const [nx, nz] = house.north;
@@ -73,6 +75,15 @@ export function TopBar({ house }: { house: House }) {
           aria-label="Camera"
         >
           {camMode === 'iso' ? 'ISO' : '3D'}
+        </button>
+        <button
+          className={`icon ${showLabels ? 'on' : ''}`}
+          onClick={() => setShowLabels(!showLabels)}
+          title={showLabels ? 'Kamernamen verbergen' : 'Kamernamen tonen'}
+          aria-label="Kamernamen"
+          aria-pressed={showLabels}
+        >
+          <Icon name="tag" />
         </button>
         <SunControl />
         <div className="compass" title="Noorden">

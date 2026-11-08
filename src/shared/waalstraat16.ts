@@ -128,9 +128,6 @@ const wastafelmeubel = fixedRecipe(1.38, 0.4, 0.88, { hout: M.hout, k: M.keramie
   box('spiegel', [1.2, 0.8, 0.02], [0, 1.55, -0.19]),
 ]);
 
-const kast = (w: number, d: number, h: number) =>
-  fixedRecipe(w, d, h, { wit: M.witMat }, [box('wit', [w, h, d], [0, h / 2, 0], 0.003), box('wit', [0.004, h - 0.05, 0.004], [0, h / 2, d / 2 + 0.001])]);
-
 const koker = (w: number, d: number, h: number) => fixedRecipe(w, d, h, { wit: M.witMat }, [box('wit', [w, h, d], [0, h / 2, 0])]);
 
 const airco = fixedRecipe(0.8, 0.22, 0.3, { wit: M.wit }, [box('wit', [0.8, 0.3, 0.22], [0, 0.15, 0], 0.04)]);
@@ -310,7 +307,6 @@ const v1: Level = {
     fx('douche', 'Inloopdouche', douche, 0.385, 3.98),
     fx('toilet-v1', 'Toilet', toilet, 0.28, 5.18, 90),
     fx('wastafel', 'Dubbel wastafelmeubel', wastafelmeubel, 2.265, 4.7, -90),
-    fx('kast-k', 'Inbouwkast', kast(1.15, 0.5, 2.0), 4.955, 11.25, 180),
     fx('koker-v1', 'Leidingkoker', koker(0.42, 0.52, STOREY), 2.35, 7.57),
     fx('trap-v1', 'Trap naar zolder', stairs(0.9, 2.0, STOREY, 13), 1.02, 7.24),
   ],
