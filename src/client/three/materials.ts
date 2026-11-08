@@ -296,19 +296,6 @@ function brickTexture(): THREE.Texture {
   });
 }
 
-/** licht gestructureerd stucwerk (grijswaarden, wordt met kleur vermenigvuldigd) */
-function plasterTexture(): THREE.Texture {
-  return canvasTexture('stuc', 256, (ctx, S) => {
-    const r = rng(29);
-    ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(0, 0, S, S);
-    for (let i = 0; i < 2500; i++) {
-      ctx.fillStyle = `rgba(0,0,0,${r() * 0.035})`;
-      ctx.fillRect(r() * S, r() * S, 2 + r() * 3, 2 + r() * 3);
-    }
-  });
-}
-
 const wallTex = (t: THREE.Texture, w: number, h: number) => {
   const m = t.clone();
   m.needsUpdate = true;
@@ -321,7 +308,7 @@ export const paintMaterial = new THREE.MeshStandardMaterial({ vertexColors: true
 export const brickMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#ffffff' });
 export const partyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#cfcac2' });
 if (typeof document !== 'undefined') {
-  paintMaterial.map = wallTex(plasterTexture(), 1.2, 1.2);
+  // geverfde muren zijn effen (geen stucstructuur)
   brickMaterial.map = wallTex(brickTexture(), 0.88, 0.5);
 }
 export const skirtingMaterial = new THREE.MeshStandardMaterial({ color: '#f7f6f3', roughness: 0.5 });

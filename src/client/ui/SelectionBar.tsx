@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { House } from '../../shared/house';
 import { roomAt } from '../../shared/placement';
 import { useApp } from '../store';
+import { keyState } from '../keyState';
 import { Icon } from './Icon';
 import { deleteSelected, duplicateSelected, fmtSize, nudgeSelected, rotateSelected } from './actions';
 
@@ -18,6 +19,8 @@ export function SelectionBar({ house }: { house: House }) {
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
       if (!useApp.getState().selectedId) return;
+      // spatiebalk ingedrukt: pijltjes draaien het beeld (KeyboardNav), niet het meubel
+      if (keyState.space && e.key.startsWith('Arrow')) return;
       const step = e.shiftKey ? 0.1 : 0.01;
       switch (e.key) {
         case 'Delete':

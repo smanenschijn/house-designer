@@ -56,13 +56,13 @@ export function TopBar({ house }: { house: House }) {
         </button>
       </div>
 
-      <div className="seg walls glass" aria-label="Buitenmuren">
-        <span className="seg-label">Gevels</span>
+      <div className="seg walls glass" aria-label="Muren">
+        <span className="seg-label">Muren</span>
         {(
           [
             ['up', 'Hoog', 'Alle muren hoog'],
             ['cutaway', 'Weg', 'Buitenmuren aan de camerakant laag'],
-            ['down', 'Laag', 'Alle buitenmuren laag'],
+            ['down', 'Laag', 'Alle muren laag, ook binnenmuren'],
           ] as const
         ).map(([m, label, title]) => (
           <button key={m} className={wallMode === m ? 'on' : ''} onClick={() => setWallMode(m)} title={title} disabled={level === 'all'}>
@@ -87,7 +87,16 @@ export function TopBar({ house }: { house: House }) {
           title={camMode === 'iso' ? 'Naar perspectief' : 'Naar isometrisch'}
           aria-label="Camera"
         >
-          {camMode === 'iso' ? 'ISO' : '3D'}
+          {camMode === 'persp' ? '3D' : 'ISO'}
+        </button>
+        <button
+          className={`icon ${camMode === 'top' ? 'on' : ''}`}
+          onClick={() => setCamMode(camMode === 'top' ? 'iso' : 'top')}
+          title={camMode === 'top' ? 'Terug naar isometrisch' : 'Bovenaanzicht (plattegrond)'}
+          aria-label="Bovenaanzicht"
+          aria-pressed={camMode === 'top'}
+        >
+          <Icon name="plan" />
         </button>
         <button
           className={`icon ${camMode === 'walk' ? 'on' : ''}`}

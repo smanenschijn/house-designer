@@ -13,6 +13,7 @@ import { Consent } from './ui/Consent';
 import { VariantsPanel } from './ui/VariantsPanel';
 import { WalkOverlay } from './ui/WalkOverlay';
 import { WallBar } from './ui/WallBar';
+import { FocusChip } from './ui/FocusChip';
 import { oauthQuery, renderParams } from './renderMode';
 
 const house = waalstraat16;
@@ -96,6 +97,7 @@ export function App() {
       <TopBar house={house} />
       <SelectionBar house={house} />
       <WallBar house={house} />
+      <FocusChip house={house} />
       {panel === 'library' && <LibraryPanel house={house} />}
       {panel === 'editor' && <ItemEditor />}
       {panel === 'account' && <AccountPanel />}
@@ -108,7 +110,7 @@ export function App() {
         </div>
       )}
       <div className="hint">
-        <span className="desk">Slepen = schuiven · rechtermuis = draaien · scroll = zoomen</span>
+        <span className="desk">Slepen of pijltjes = schuiven · spatie + pijltjes of rechtermuis = draaien · scroll = zoomen · tik op een kamernaam voor focus</span>
         <span className="touch">Tik = selecteren · lang vasthouden of geselecteerd meubel slepen = verplaatsen</span>
       </div>
     </div>

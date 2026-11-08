@@ -134,10 +134,20 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       const g = groupRef.current;
       if (!g) return null;
       const hits = raycaster.intersectObject(g, true);
+      const st = useApp.getState();
+      const focusRoom = st.roomFocus ? activeLevel()?.rooms.find((r) => r.id === st.roomFocus) : null;
       for (const h of hits) {
         let o: THREE.Object3D | null = h.object;
         while (o) {
-          if (o.userData?.placementId) return o.userData.placementId as string;
+          if (o.userData?.placementId) {
+            const id = o.userData.placementId as string;
+            // focus op een kamer: alleen meubels in die kamer
+            if (focusRoom) {
+              const p = st.placements.find((q) => q.id === id);
+              if (!p || !pointInPolygon([p.x, p.z], focusRoom.polygon)) break;
+            }
+            return id;
+          }
           o = o.parent;
         }
       }
@@ -180,6 +190,8 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       const probe: [number, number] = [h.point.x + best.n[0] * best.side * 0.15, h.point.z + best.n[1] * best.side * 0.15];
       const room = lvl.rooms.find((r) => pointInPolygon(probe, r.polygon));
       if (!room) return null; // buitenkant van de gevel
+      const focus = useApp.getState().roomFocus;
+      if (focus && room.id !== focus) return null; // focus: alleen muren van die kamer
       return { levelId: lvl.id, wallId: best.wallId, side: best.side, roomId: room.id };
     };
 

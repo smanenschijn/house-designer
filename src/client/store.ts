@@ -33,13 +33,15 @@ interface AppState {
   focusRequest: number;
   snap: boolean;
   /** iso = isometrisch (orthografisch), persp = perspectief */
-  camMode: 'iso' | 'persp' | 'walk';
+  camMode: 'iso' | 'persp' | 'walk' | 'top';
   showLabels: boolean;
   /** false = kijkmodus: meubels zijn vastgezet */
   editMode: boolean;
   online: { id: string; name: string }[];
   /** kamer om op in te zoomen bij het openen (rendermodus) */
   focusRoom: string | null;
+  /** kamer waarop de focus ligt: groot in beeld, alleen die kamer bewerken */
+  roomFocus: string | null;
   notice: string | null;
   /** zon: datum (YYYY-MM-DD) en tijd in minuten na middernacht (lokale tijd) */
   sun: { date: string; minutes: number };
@@ -56,9 +58,10 @@ interface AppState {
   requestRotate: (dir: 1 | -1) => void;
   requestFocus: () => void;
   focusOn: (roomId: string | null) => void;
+  setRoomFocus: (roomId: string | null, levelIndex?: number) => void;
   setSnap: (s: boolean) => void;
   setDragging: (id: string | null) => void;
-  setCamMode: (m: 'iso' | 'persp' | 'walk') => void;
+  setCamMode: (m: 'iso' | 'persp' | 'walk' | 'top') => void;
   setShowLabels: (v: boolean) => void;
   setEditMode: (v: boolean) => void;
   setOnline: (o: { id: string; name: string }[]) => void;
@@ -119,6 +122,7 @@ export const useApp = create<AppState>((set, get) => ({
   online: [],
   notice: null,
   focusRoom: renderParams?.room ?? null,
+  roomFocus: null,
   sun: {
     date: renderParams?.date ?? new Date().toISOString().slice(0, 10),
     minutes: renderParams?.time ? Number(renderParams.time.split(':')[0]) * 60 + Number(renderParams.time.split(':')[1]) : 14 * 60,
@@ -147,7 +151,7 @@ export const useApp = create<AppState>((set, get) => ({
       });
     }
   },
-  setLevel: (level) => set({ level, selectedId: null, selectedWall: null }),
+  setLevel: (level) => set({ level, selectedId: null, selectedWall: null, roomFocus: null }),
   setWallMode: (wallMode) => set({ wallMode }),
   select: (selectedId) => set(selectedId ? { selectedId, selectedWall: null } : { selectedId }),
   selectWall: (selectedWall) => set(selectedWall ? { selectedWall, selectedId: null } : { selectedWall }),
@@ -156,6 +160,19 @@ export const useApp = create<AppState>((set, get) => ({
   requestRotate: (dir) => set((s) => ({ rotateRequest: s.rotateRequest + dir })),
   requestFocus: () => set((s) => ({ focusRoom: null, focusRequest: s.focusRequest + 1 })),
   focusOn: (roomId) => set((s) => ({ focusRoom: roomId, focusRequest: s.focusRequest + 1 })),
+  setRoomFocus: (roomId, levelIndex) =>
+    set((s) =>
+      roomId
+        ? {
+            roomFocus: roomId,
+            focusRoom: roomId,
+            focusRequest: s.focusRequest + 1,
+            selectedId: null,
+            selectedWall: null,
+            ...(levelIndex !== undefined ? { level: levelIndex } : {}),
+          }
+        : { roomFocus: null, focusRoom: null, focusRequest: s.focusRequest + 1 },
+    ),
   setSnap: (snap) => set({ snap }),
   setDragging: (dragging) => set({ dragging }),
   setCamMode: (camMode) => set(camMode === 'walk' ? { camMode, selectedId: null, level: useApp.getState().level === 'all' ? 0 : useApp.getState().level } : { camMode }),

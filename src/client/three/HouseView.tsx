@@ -55,7 +55,7 @@ function disposeTree(o: THREE.Object3D) {
   });
 }
 
-const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels, finishes, walking }: {
+const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels, finishes, walking, topView }: {
   house: House;
   index: number;
   active: boolean;
@@ -65,6 +65,7 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
   showLabels: boolean;
   finishes: Record<string, RoomFinish>;
   walking: boolean;
+  topView: boolean;
 }) {
   const level = house.levels[index];
   // alleen opnieuw opbouwen als de afwerking van déze verdieping verandert (niet bij draaien!)
@@ -77,8 +78,10 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
       const room = level.rooms.find((r) => pointInPolygon([x, z], r.polygon));
       return room ? faceFinish(byRoom.get(room.id), wall.id, side) : null;
     };
-    // binnenmuren: altijd hoog, één keer opbouwen
-    const interior = wallGroup({ ...level, walls: level.walls.filter((w) => !w.outside) }, null, finishAt);
+    // binnenmuren: een hoge en een lage versie (stand "Laag" zet ook binnenmuren omlaag)
+    const interiorLevel = { ...level, walls: level.walls.filter((w) => !w.outside) };
+    const interior = wallGroup(interiorLevel, null, finishAt);
+    const interiorStub = wallGroup(interiorLevel, STUB, finishAt);
     // gevels: een hoge én een lage versie; bij draaien wisselen we alleen de zichtbaarheid
     const exterior = level.walls
       .filter((w) => w.outside)
@@ -90,12 +93,13 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
     const floors = buildFloors(level.rooms, level.elevation, index === 0 ? 0 : 0.2, 0.004, 0, (r) => byRoom.get(r.id)?.floor ?? r.floor);
     const lowFixtures = mergeByMaterial(buildFixtures(level.fixtures.filter((f) => !f.high), level.elevation, true));
     const highFixtures = mergeByMaterial(buildFixtures(level.fixtures.filter((f) => f.high), level.elevation, true));
-    return { interior, exterior, skirting, floors, lowFixtures, highFixtures };
+    return { interior, interiorStub, exterior, skirting, floors, lowFixtures, highFixtures };
   }, [level, index, finishKey]);
 
   useEffect(
     () => () => {
       disposeTree(statics.interior);
+      disposeTree(statics.interiorStub);
       statics.exterior.forEach((e) => {
         disposeTree(e.full);
         disposeTree(e.stub);
@@ -120,11 +124,15 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
     return new Set<string>();
   }, [walking, showAll, active, wallMode, azKey, level, statics]);
 
-  const showHigh = walking || showAll || !active || wallMode === 'up';
+  const interiorLow = !walking && !showAll && active && wallMode === 'down';
+  // plafondelementen (verlaagd plafond, airco) niet van bovenaf: ze zouden de kamer bedekken
+  const roomFocus = useApp((s) => s.roomFocus);
+  const showHigh = walking || showAll || !active || (wallMode === 'up' && !topView);
 
   return (
     <group>
-      <primitive object={statics.interior} />
+      <primitive object={statics.interior} visible={!interiorLow} />
+      <primitive object={statics.interiorStub} visible={interiorLow} />
       {statics.exterior.map((e) => (
         <group key={e.id}>
           <primitive object={e.full} visible={!lowered.has(e.id)} />
@@ -140,8 +148,14 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
         level.rooms
           .filter((r) => r.label)
           .map((r) => (
-            <Html key={r.id} position={[r.label![0], level.elevation + 0.05, r.label![1]]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-              <div className="room-label">{r.name}</div>
+            <Html key={r.id} position={[r.label![0], level.elevation + 0.05, r.label![1]]} center zIndexRange={[10, 0]}>
+              <button
+                className={`room-label ${roomFocus === r.id ? 'on' : ''}`}
+                title={roomFocus === r.id ? 'Focus opheffen' : `Focus op ${r.name}`}
+                onClick={() => useApp.getState().setRoomFocus(roomFocus === r.id ? null : r.id, index)}
+              >
+                {r.name}
+              </button>
             </Html>
           ))}
     </group>
@@ -158,6 +172,7 @@ export function HouseView({ house }: { house: House }) {
   const activeVariants = useApp((s) => s.active);
   const finishes = useMemo(() => activeFinishes(variants, activeVariants), [variants, activeVariants]);
   const walking = useApp((s) => s.camMode === 'walk');
+  const topView = useApp((s) => s.camMode === 'top');
   const showAll = level === 'all';
   const activeIndex = showAll ? house.levels.length - 1 : level;
 
@@ -189,7 +204,7 @@ export function HouseView({ house }: { house: House }) {
       <primitive object={shadowProxy} />
       {house.levels.map((_, i) =>
         i <= activeIndex ? (
-          <LevelMesh key={i} house={house} index={i} active={i === activeIndex} wallMode={wallMode} azKey={azKey} showAll={showAll} showLabels={showLabels} finishes={finishes} walking={walking} />
+          <LevelMesh key={i} house={house} index={i} active={i === activeIndex} wallMode={wallMode} azKey={azKey} showAll={showAll} showLabels={showLabels} finishes={finishes} walking={walking} topView={topView} />
         ) : null,
       )}
       {showAll && <primitive object={roofs} />}

@@ -12,7 +12,8 @@ function RoomCard({ room, variants }: { room: Room; variants: Variant[] }) {
   const active = useApp((s) => s.active);
   const placements = useApp((s) => s.placements);
   const items = useApp((s) => s.items);
-  const focusOn = useApp((s) => s.focusOn);
+  const setRoomFocus = useApp((s) => s.setRoomFocus);
+  const levelIndex = useApp((s) => (s.level === 'all' ? 0 : s.level));
   const activeId = activeVariantFor(active, room.id);
   const current = variants.find((v) => v.id === activeId) ?? variants[0];
 
@@ -48,7 +49,7 @@ function RoomCard({ room, variants }: { room: Room; variants: Variant[] }) {
     <div className="room-card">
       <div className="room-card-head">
         <h3>{room.name}</h3>
-        <button className="small ghost" onClick={() => focusOn(room.id)} title="In beeld brengen">
+        <button className="small ghost" onClick={() => setRoomFocus(room.id, levelIndex)} title="Focus op deze kamer">
           <Icon name="focus" size={14} /> Toon
         </button>
       </div>

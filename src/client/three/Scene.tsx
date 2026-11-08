@@ -16,9 +16,13 @@ import { FurnitureLayer } from './Furniture';
 import { HouseView } from './HouseView';
 import { WalkControls } from './WalkControls';
 import { WallHighlight } from './WallHighlight';
+import { RoomFocus } from './RoomFocus';
+import { KeyboardNav } from './KeyboardNav';
 
 const POLAR = 0.95; // ~54° vanaf verticaal
 const FOV = 40;
+/** bovenaanzicht: (bijna) recht naar beneden; niet exact 0 zodat de draairichting behouden blijft */
+const TOP_POLAR = 0.0008;
 const isMobile = () => typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 700;
 
 function houseExtent(house: House) {
@@ -72,6 +76,7 @@ function CameraRig({ house }: { house: House }) {
   const lastRot = useRef(0);
   const initFor = useRef<THREE.Camera | null>(null);
   const persp = camMode === 'persp';
+  const top = camMode === 'top';
 
   const place = (c: OrbitControlsImpl, target: THREE.Vector3, az: number, polar: number) => {
     const isPersp = (camera as THREE.PerspectiveCamera).isPerspectiveCamera;
@@ -98,9 +103,16 @@ function CameraRig({ house }: { house: House }) {
         const focus = st.focusRoom ? roomExtent(house, st.focusRoom) : null;
         const { center, size: s } = focus ?? houseExtent(house);
         visibleHeight.value = s * (focus ? 1.6 : 1.25) * Math.max(1, size.height / size.width);
-        place(c, center, st.azimuth, camera.type === 'PerspectiveCamera' ? 0.85 : POLAR);
+        place(c, center, st.azimuth, st.camMode === 'top' ? TOP_POLAR : camera.type === 'PerspectiveCamera' ? 0.85 : POLAR);
       } else {
-        place(c, viewState.target.clone(), useApp.getState().azimuth, Math.min(c.getPolarAngle(), camera.type === 'OrthographicCamera' ? 1.25 : 1.5));
+        const mode = useApp.getState().camMode;
+        const prev = c.getPolarAngle();
+        // van bovenaanzicht naar iso/perspectief: weer schuin kijken
+        const polar = mode === 'top' ? TOP_POLAR : prev < 0.05 ? (mode === 'persp' ? 0.85 : POLAR) : Math.min(prev, camera.type === 'OrthographicCamera' ? 1.25 : 1.5);
+        // plattegrond: recht uitlijnen op de dichtstbijzijnde kwartslag (straat onder bij 0°)
+        const az0 = useApp.getState().azimuth;
+        const az = mode === 'top' ? Math.round(az0 / (Math.PI / 2)) * (Math.PI / 2) : az0;
+        place(c, viewState.target.clone(), az, polar);
       }
       initFor.current = camera;
       invalidate();
@@ -170,8 +182,8 @@ function CameraRig({ house }: { house: House }) {
       makeDefault
       enableDamping
       dampingFactor={0.12}
-      minPolarAngle={persp ? 0.15 : 0.45}
-      maxPolarAngle={persp ? 1.5 : 1.25}
+      minPolarAngle={top ? TOP_POLAR : persp ? 0.15 : 0.45}
+      maxPolarAngle={top ? TOP_POLAR : persp ? 1.5 : 1.25}
       minZoom={8}
       maxZoom={400}
       minDistance={1.5}
@@ -301,14 +313,17 @@ export function Scene({ house }: { house: House }) {
       style={{ touchAction: 'none' }}
     >
       <OrthographicCamera makeDefault={camMode === 'iso'} position={[-40, 50, 60]} near={1} far={600} zoom={40} />
+      <OrthographicCamera makeDefault={camMode === 'top'} position={[0, 80, 0]} near={1} far={600} zoom={40} />
       <PerspectiveCamera makeDefault={camMode === 'persp'} position={[-20, 20, 30]} fov={FOV} near={0.1} far={6000} />
       <PerspectiveCamera makeDefault={camMode === 'walk'} position={[0, 1.6, 0]} fov={72} near={0.05} far={6000} />
       {camMode === 'walk' ? <WalkControls house={house} /> : <CameraRig house={house} />}
+      {camMode !== 'walk' && !renderParams && <KeyboardNav />}
       <SunAndSky house={house} />
       <Suspense fallback={null}>
         <HouseView house={house} />
         <FurnitureLayer house={house} />
         <WallHighlight house={house} />
+        <RoomFocus house={house} />
       </Suspense>
       <Effects />
       <ShadowUpdater />
