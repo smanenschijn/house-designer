@@ -9,6 +9,7 @@ import { viewState } from '../viewState';
 /** Plaats een bibliotheekitem midden in beeld op de actieve verdieping. */
 export async function placeItem(house: House, item: Item) {
   const st = useApp.getState();
+  if (!st.editMode) st.setEditMode(true);
   let li = st.level === 'all' ? 0 : st.level;
   if (st.level === 'all') st.setLevel(0);
   const level = house.levels[li];

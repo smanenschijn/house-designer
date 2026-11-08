@@ -18,6 +18,8 @@ export function TopBar({ house }: { house: House }) {
   const setCamMode = useApp((s) => s.setCamMode);
   const showLabels = useApp((s) => s.showLabels);
   const online = useApp((s) => s.online);
+  const editMode = useApp((s) => s.editMode);
+  const setEditMode = useApp((s) => s.setEditMode);
   const setShowLabels = useApp((s) => s.setShowLabels);
 
   // kompas: noordvector geprojecteerd op scherm-rechts en scherm-boven
@@ -85,6 +87,15 @@ export function TopBar({ house }: { house: House }) {
           aria-pressed={showLabels}
         >
           <Icon name="tag" />
+        </button>
+        <button
+          className={`icon ${editMode ? '' : 'on'}`}
+          onClick={() => setEditMode(!editMode)}
+          title={editMode ? 'Kijkmodus: meubels vastzetten' : 'Bewerken: meubels weer verplaatsbaar maken'}
+          aria-label={editMode ? 'Kijkmodus' : 'Bewerken'}
+          aria-pressed={!editMode}
+        >
+          <Icon name={editMode ? 'unlock' : 'lock'} />
         </button>
         <SunControl />
         <div className="compass" title="Noorden">

@@ -30,6 +30,8 @@ interface AppState {
   /** iso = isometrisch (orthografisch), persp = perspectief */
   camMode: 'iso' | 'persp';
   showLabels: boolean;
+  /** false = kijkmodus: meubels zijn vastgezet */
+  editMode: boolean;
   online: { id: string; name: string }[];
   /** kamer om op in te zoomen bij het openen (rendermodus) */
   focusRoom: string | null;
@@ -51,6 +53,7 @@ interface AppState {
   setDragging: (id: string | null) => void;
   setCamMode: (m: 'iso' | 'persp') => void;
   setShowLabels: (v: boolean) => void;
+  setEditMode: (v: boolean) => void;
   setOnline: (o: { id: string; name: string }[]) => void;
   setNotice: (n: string | null) => void;
   setSun: (patch: Partial<{ date: string; minutes: number }>) => void;
@@ -102,6 +105,7 @@ export const useApp = create<AppState>((set, get) => ({
   snap: true,
   camMode: renderParams?.camera ?? 'iso',
   showLabels: renderParams ? true : readPref('showLabels', true),
+  editMode: renderParams ? false : readPref('editMode', true),
   online: [],
   notice: null,
   focusRoom: renderParams?.room ?? null,
@@ -143,6 +147,10 @@ export const useApp = create<AppState>((set, get) => ({
   setCamMode: (camMode) => set({ camMode }),
   setOnline: (online) => set({ online }),
   setNotice: (notice) => set({ notice }),
+  setEditMode: (editMode) => {
+    writePref('editMode', editMode);
+    set(editMode ? { editMode } : { editMode, selectedId: null });
+  },
   setShowLabels: (showLabels) => {
     writePref('showLabels', showLabels);
     set({ showLabels });

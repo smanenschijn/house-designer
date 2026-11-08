@@ -23,6 +23,8 @@ const PATHS = {
   north: 'M12 3l5 15-5-3-5 3 5-15Z',
   layers: 'M12 3 2 8l10 5 10-5-10-5ZM2 13l10 5 10-5M2 17.5l10 5 10-5',
   tag: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM7.5 7.5h.01',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2',
+  unlock: 'M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5zM12 15v2',
 } as const;
 
 export type IconName = keyof typeof PATHS;

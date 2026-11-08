@@ -102,7 +102,7 @@ export function App() {
       )}
       <div className="hint">
         <span className="desk">Slepen = schuiven · rechtermuis = draaien · scroll = zoomen</span>
-        <span className="touch">1 vinger = schuiven · 2 vingers = zoomen/draaien</span>
+        <span className="touch">Tik = selecteren · lang vasthouden of geselecteerd meubel slepen = verplaatsen</span>
       </div>
     </div>
   );

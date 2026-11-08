@@ -104,10 +104,14 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
     const hit = new THREE.Vector3();
     let drag: null | { id: string; pointerId: number; offX: number; offZ: number; moved: boolean; startX: number; startY: number; orig: Placement } = null;
     let tap: null | { x: number; y: number; t: number } = null;
+    /** touch: vinger op een (nog niet geselecteerd) meubel, wachten op lang vasthouden */
+    let press: null | { id: string; pointerId: number; x: number; y: number; lastX: number; lastY: number; timer: ReturnType<typeof setTimeout> } = null;
+    const touches = new Set<number>();
+    const LONG_PRESS = 450;
 
-    const setNdc = (e: PointerEvent) => {
+    const setNdc = (x: number, y: number) => {
       const r = el.getBoundingClientRect();
-      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
     };
 
@@ -125,45 +129,104 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       return null;
     };
 
-    const levelElevation = () => {
+    const activeLevel = () => {
       const lv = useApp.getState().level;
       return lv === 'all' ? null : house.levels[lv];
     };
 
+    const setControls = (on: boolean) => {
+      if (controls) (controls as unknown as { enabled: boolean }).enabled = on;
+    };
+
+    const cancelPress = () => {
+      if (press) clearTimeout(press.timer);
+      press = null;
+    };
+
+    /** begin met slepen vanaf schermpositie (x, y) */
+    const startDrag = (id: string, pointerId: number, x: number, y: number) => {
+      const lvl = activeLevel();
+      const st = useApp.getState();
+      const p = st.placements.find((q) => q.id === id);
+      if (!lvl || !p) return false;
+      st.select(id);
+      plane.constant = -lvl.elevation;
+      setNdc(x, y);
+      if (!raycaster.ray.intersectPlane(plane, hit)) return false;
+      drag = { id, pointerId, offX: hit.x - p.x, offZ: hit.z - p.z, moved: false, startX: x, startY: y, orig: { ...p } };
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        /* pointer al weg */
+      }
+      setControls(false);
+      return true;
+    };
+
     const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') touches.add(e.pointerId);
+      // tweede vinger: knijpen/draaien gaat altijd voor
+      if (touches.size > 1) {
+        cancelPress();
+        if (drag && !drag.moved) {
+          drag = null;
+          setControls(true);
+        }
+        return;
+      }
       if (e.button !== 0) return;
-      const lvl = levelElevation();
-      setNdc(e);
-      const id = lvl ? pickPlacement() : null;
-      if (!id || !lvl) {
+      const st = useApp.getState();
+      const lvl = activeLevel();
+      setNdc(e.clientX, e.clientY);
+      const id = lvl && st.editMode ? pickPlacement() : null;
+      if (!id) {
         tap = { x: e.clientX, y: e.clientY, t: performance.now() };
         return;
       }
-      // voorkom dat de cameracontrols (zelfde element) ook gaan pannen
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      const st = useApp.getState();
-      const p = st.placements.find((x) => x.id === id);
-      if (!p) return;
-      st.select(id);
-      plane.constant = -lvl.elevation;
-      if (!raycaster.ray.intersectPlane(plane, hit)) return;
-      drag = { id, pointerId: e.pointerId, offX: hit.x - p.x, offZ: hit.z - p.z, moved: false, startX: e.clientX, startY: e.clientY, orig: { ...p } };
-      el.setPointerCapture(e.pointerId);
-      if (controls) (controls as unknown as { enabled: boolean }).enabled = false;
+      const direct = e.pointerType !== 'touch' || id === st.selectedId;
+      if (direct) {
+        // muis, of een al geselecteerd meubel: direct slepen (camera niet laten meebewegen)
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        startDrag(id, e.pointerId, e.clientX, e.clientY);
+        return;
+      }
+      // touch op een ander meubel: de camera mag pannen; lang vasthouden = oppakken
+      cancelPress();
+      press = {
+        id,
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        timer: setTimeout(() => {
+          if (!press) return;
+          const pr = press;
+          press = null;
+          if (startDrag(pr.id, pr.pointerId, pr.lastX, pr.lastY)) navigator.vibrate?.(15);
+        }, LONG_PRESS),
+      };
     };
 
     const onMove = (e: PointerEvent) => {
+      if (press && e.pointerId === press.pointerId) {
+        press.lastX = e.clientX;
+        press.lastY = e.clientY;
+        // vinger beweegt: het is pannen, geen oppakken
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) cancelPress();
+        return;
+      }
       if (!drag || e.pointerId !== drag.pointerId) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 4) return;
       if (!drag.moved) {
         drag.moved = true;
         useApp.getState().setDragging(drag.id);
       }
-      setNdc(e);
+      setNdc(e.clientX, e.clientY);
       if (!raycaster.ray.intersectPlane(plane, hit)) return;
       const st = useApp.getState();
-      const lvl = levelElevation();
+      const lvl = activeLevel();
       const p = st.placements.find((x) => x.id === drag!.id);
       const it = p && st.items.find((i) => i.id === p.itemId);
       if (!p || !it || !lvl) return;
@@ -173,15 +236,23 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       if (st.snap && !e.altKey) {
         x = Math.round(x / 0.01) * 0.01;
         z = Math.round(z / 0.01) * 0.01;
-        const s = snapToWalls({ x, z, hw: it.recipe.size.width / 2, hd: it.recipe.size.depth / 2, rot }, lvl);
-        x = s.x;
-        z = s.z;
-        rot = s.rot;
+        const sn = snapToWalls({ x, z, hw: it.recipe.size.width / 2, hd: it.recipe.size.depth / 2, rot }, lvl);
+        x = sn.x;
+        z = sn.z;
+        rot = sn.rot;
       }
       st.patchPlacementLocal(drag.id, { x, z, rotation: rot });
     };
 
     const onUp = (e: PointerEvent) => {
+      touches.delete(e.pointerId);
+      if (press && e.pointerId === press.pointerId) {
+        // korte tik op een meubel: alleen selecteren
+        const pr = press;
+        cancelPress();
+        if (Math.hypot(e.clientX - pr.x, e.clientY - pr.y) <= 8) useApp.getState().select(pr.id);
+        return;
+      }
       if (drag && e.pointerId === drag.pointerId) {
         const d = drag;
         drag = null;
@@ -190,7 +261,7 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
         } catch {
           /* al vrijgegeven */
         }
-        if (controls) (controls as unknown as { enabled: boolean }).enabled = true;
+        setControls(true);
         const st = useApp.getState();
         st.setDragging(null);
         if (d.moved) {
@@ -218,6 +289,7 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      cancelPress();
     };
   }, [gl, camera, controls, house, groupRef]);
 }
