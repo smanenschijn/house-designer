@@ -9,7 +9,8 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 - **Weergave**: per verdieping of het hele huis met dak (“Buiten”). Muren hoog, weggesneden aan de camerakant (“Weg”) of allemaal laag. 90° draaien, kompas.
 - **Bibliotheek**: meubels maken met sjablonen (bank, hoekbank, bed, tafel, kast, …) op exacte maten, of een **JSON-recept plakken** uit een Claude-gesprek. Status, prijs, winkel, link en notities per meubel. Totaal “nog te kopen”.
 - **Inrichten**: plaatsen, slepen, draaien (R / Q / E), dupliceren, verwijderen. Meubels klikken **magnetisch tegen muren** en worden **rood als ze botsen** met een muur of ander meubel.
-- **Samen**: elk een eigen login; wijzigingen van de ander verschijnen binnen een paar seconden.
+- **Samen**: elk een eigen account (beheer via de ronde knop rechtsboven → *Account*); wijzigingen van de ander verschijnen binnen een paar seconden.
+- **Inloggen met passkey** (Face ID / Touch ID). Heb je een passkey, dan is die ook de tweede stap na je wachtwoord.
 - Werkt met muis en met touch (iPad/telefoon).
 
 ### Bediening
@@ -28,11 +29,16 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 
 ```bash
 npm install
-cp .env.example .env   # en vul eigen accounts in
+cp .env.example .env   # vul ADMIN_PASSWORD in; PUBLIC_URL=http://localhost:5173
 npm run dev            # web op :5173, API op :8787
 ```
 
-Accounts toevoegen of wachtwoord wijzigen:
+## Gebruikers
+
+- Bij de **eerste start** (lege database) wordt één account aangemaakt uit `ADMIN_USERNAME` / `ADMIN_PASSWORD` (minstens 10 tekens), zoals bij iptv-blaster.
+- Daarna log je daarmee in en maak je onder **Account → Gebruikers** extra accounts aan. Er zijn geen rollen: iedereen mag alles (ook gebruikers beheren of een wachtwoord resetten).
+- Onder **Account → Passkeys** voeg je per apparaat een passkey toe. Passkeys werken alleen op het domein uit `PUBLIC_URL`.
+- Noodtoegang vanaf de server (account aanmaken of wachtwoord resetten):
 
 ```bash
 npm run user:add -- stefan Stefan "een-sterk-wachtwoord"
@@ -44,9 +50,13 @@ npm run user:add -- stefan Stefan "een-sterk-wachtwoord"
 2. Voeg een **volume** toe: mount `/data` (hier staat de SQLite-database).
 3. Environment:
    ```
-   BOOTSTRAP_USERS=stefan:Stefan:<wachtwoord>;partner:<Naam>:<wachtwoord>
+   ADMIN_USERNAME=stefan
+   ADMIN_DISPLAY_NAME=Stefan
+   ADMIN_PASSWORD=<minstens 10 tekens>
+   PUBLIC_URL=https://huis.<jouwdomein>
    ```
-   Accounts worden alleen aangemaakt als ze nog niet bestaan; daarna kun je de variabele weghalen.
+   Het account wordt alleen aangemaakt zolang de database nog leeg is; daarna kun je `ADMIN_PASSWORD` weghalen.
+   `PUBLIC_URL` moet exact het adres zijn waarop je de site opent: passkeys en veilige cookies hangen ervan af.
 4. Domein: bijv. `huis.<jouwdomein>` → container-poort **8787**, HTTPS aan.
 5. In Cloudflare: DNS-record (A/CNAME) naar de Hetzner-server, proxy aan; SSL-modus *Full (strict)*.
 
@@ -56,7 +66,7 @@ Healthcheck: `GET /api/health`.
 
 - `src/shared` — huismodel (`waalstraat16.ts`), meubelrecepten (`recipe.ts`, zod-schema), sjablonen, plaatsingslogica (snap/botsing).
 - `src/client` — React + React Three Fiber; muren worden opgebouwd uit stukken rond ramen/deuren zodat ze laag gezet kunnen worden.
-- `src/server` — Hono + ingebouwde SQLite van Node (`node:sqlite`), sessielogin met scrypt-wachtwoorden.
+- `src/server` — Hono + ingebouwde SQLite van Node (`node:sqlite`); sessies met gehashte tokens in een httpOnly-cookie, scrypt-wachtwoorden, passkeys via SimpleWebAuthn, oplopende wachttijd na mislukte inlogpogingen.
 
 ### Meubelrecept (voor Claude)
 

@@ -1,5 +1,4 @@
 import type { House } from '../../shared/house';
-import { api } from '../api';
 import { useApp } from '../store';
 
 export function TopBar({ house }: { house: House }) {
@@ -74,14 +73,7 @@ export function TopBar({ house }: { house: House }) {
         Bibliotheek
       </button>
       {user && (
-        <button
-          className="ghost user"
-          title="Uitloggen"
-          onClick={async () => {
-            await api.logout().catch(() => undefined);
-            location.reload();
-          }}
-        >
+        <button className={`ghost user ${panel === 'account' ? 'on' : ''}`} title="Account en gebruikers" onClick={() => setPanel(panel === 'account' ? null : 'account')}>
           {user.displayName.slice(0, 1).toUpperCase()}
         </button>
       )}

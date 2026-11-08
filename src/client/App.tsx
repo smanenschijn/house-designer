@@ -1,56 +1,16 @@
 import { useEffect, useState } from 'react';
 import { waalstraat16 } from '../shared/waalstraat16';
-import { ApiError, api } from './api';
+import { api } from './api';
 import { useApp } from './store';
 import { Scene } from './three/Scene';
+import { AccountPanel } from './ui/AccountPanel';
 import { ItemEditor } from './ui/ItemEditor';
+import { Login } from './ui/Login';
 import { LibraryPanel } from './ui/LibraryPanel';
 import { SelectionBar } from './ui/SelectionBar';
 import { TopBar } from './ui/TopBar';
 
 const house = waalstraat16;
-
-function Login({ onDone }: { onDone: () => void }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="login">
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setErr(null);
-          try {
-            const u = await api.login(username.trim(), password);
-            useApp.getState().setUser(u);
-            onDone();
-          } catch (e2) {
-            setErr(e2 instanceof ApiError && e2.status === 401 ? 'Onbekende gebruiker of verkeerd wachtwoord.' : String(e2));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <h1>Waalstraat 16</h1>
-        <p className="muted">Ons nieuwe huis inrichten</p>
-        <label className="field">
-          <span>Gebruikersnaam</span>
-          <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-        </label>
-        <label className="field">
-          <span>Wachtwoord</span>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        {err && <div className="error-box">{err}</div>}
-        <button className="primary block" disabled={busy || !username || !password}>
-          {busy ? 'Bezig…' : 'Inloggen'}
-        </button>
-      </form>
-    </div>
-  );
-}
 
 export function App() {
   const user = useApp((s) => s.user);
@@ -84,7 +44,7 @@ export function App() {
   }, [error]);
 
   if (!checked) return null;
-  if (!user) return <Login onDone={() => undefined} />;
+  if (!user) return <Login onLogin={(u) => useApp.getState().setUser(u)} />;
 
   return (
     <div className={`app ${panel ? 'with-panel' : ''}`}>
@@ -96,6 +56,7 @@ export function App() {
       <SelectionBar house={house} />
       {panel === 'library' && <LibraryPanel house={house} />}
       {panel === 'editor' && <ItemEditor />}
+      {panel === 'account' && <AccountPanel />}
       {error && (
         <div className="toast" onClick={() => useApp.getState().setError(null)}>
           {error}

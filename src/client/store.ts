@@ -19,7 +19,7 @@ interface AppState {
   selectedId: string | null;
   /** id van de plaatsing die nu gesleept wordt (niet overschrijven door verversen) */
   dragging: string | null;
-  panel: 'library' | 'editor' | null;
+  panel: 'library' | 'editor' | 'account' | null;
   editingItemId: string | null;
   /** azimut van de camera in radialen (voor cutaway en kompas) */
   azimuth: number;

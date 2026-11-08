@@ -89,7 +89,8 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .compass small { position: absolute; bottom: -2px; font-size: 9px; color: var(--muted); }
 .spacer { flex: 1; }
 .topbar .primary, .topbar .user { box-shadow: var(--shadow); }
-.user { width: 36px; height: 36px; border-radius: 50% !important; background: var(--panel) !important; font-weight: 700; padding: 0; }
+.user { width: 36px; height: 36px; border-radius: 50% !important; background: var(--panel) !important; color: var(--ink) !important; font-weight: 700; padding: 0; }
+.user.on { outline: 2px solid var(--ink); }
 
 .room-label {
   background: rgba(255, 255, 255, 0.82);
@@ -204,6 +205,18 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .login form { width: min(360px, 100%); background: var(--panel); border-radius: 16px; box-shadow: var(--shadow); padding: 24px; display: grid; gap: 12px; }
 .login h1 { margin: 0; font-size: 24px; }
 .login p { margin: 0 0 6px; }
+
+/* ---------- inloggen & account ---------- */
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.passkey-btn { background: #f6f3ee; font-weight: 600; }
+.ok-box { background: #e6f5ea; color: #1d6b37; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.acc-section { display: grid; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.acc-section:last-child { border-bottom: 0; }
+.acc-section h3 { margin: 4px 0 0; font-size: 15px; }
+.acc-section p { margin: 0; }
+.acc-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; }
+.acc-form { display: grid; gap: 8px; }
 
 /* ---------- mobiel ---------- */
 @media (max-width: 760px) {
