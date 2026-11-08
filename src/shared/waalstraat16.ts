@@ -249,7 +249,7 @@ const bg: Level = {
     fx('koelkast', 'Amerikaanse koelkast', amerikaanseKoelkast, 0.485, 4.48, 180),
     fx('lowboard', 'Zwevende lowboard', zwevend(3.9, 0.4, 0.4, 6), W - 0.2, 9.35, -90, 0.25),
     fx('sierhaard', 'Elektrische sierhaard', sierhaard, W - 0.2, 9.18, -90, 0.65),
-    fx('schouw', 'Schouw', schouw(CEILING - 1.07), W - 0.2, 9.18, -90, 1.07, true),
+    fx('schouw', 'Schouw', schouw(CEILING - 1.07), W - 0.2, 9.18, -90, 1.07),
     fx('tv-meubel', 'Zwevend tv-meubel', zwevend(1.8, 0.4, 0.42, 3), 2.92, Z_FRONT - 0.2, 180, 0.22),
     fx('toilet-bg', 'Toilet', toilet, 2.23, 5.22, -90),
     fx('fontein', 'Fontein', fontein, 1.42, 5.5, 90, 0.8),
@@ -370,6 +370,27 @@ export const waalstraat16: House = {
     { kind: 'flat', x0: 0.34, x1: 5.81, z0: -13.4, z1: -10.1, y: 2.5, thickness: 0.2, color: '#6b5440' }, // overkapping
     { kind: 'flat', x0: 2.65, x1: 5.81, z0: -10.1, z1: -7.03, y: 2.5, thickness: 0.2, color: '#6b5440' },
   ],
+  neighbors: [
+    {
+      // Waalstraat 14: de andere helft van de twee-onder-een-kap (gespiegeld, zonder uitbouw)
+      name: 'Waalstraat 14',
+      x0: 5.81,
+      x1: 11.62,
+      z0: Z_OLD_BACK - T_EXT,
+      z1: 11.78,
+      height: ATTIC_FLOOR,
+      roof: {
+        kind: 'gable',
+        x0: 5.81,
+        x1: 12.07,
+        zBack: Z_OLD_BACK - T_EXT - 0.35,
+        zFront: 11.78 + 0.35,
+        ridgeZ: RIDGE_Z,
+        underside: roofUnderside,
+        thickness: ROOF_T,
+      },
+    },
+  ],
   outdoor: {
     bounds: { x0: -12, x1: 14, z0: -20, z1: 24 },
     areas: [
@@ -405,6 +426,7 @@ export const waalstraat16: House = {
     'Dakhelling ca. 34° afgeleid uit de 1,50 m-lijn op de zolderplattegrond; nok ± 3,0 m boven zoldervloer.',
     'Vensterbanken en raamhoogtes geschat op basis van de foto’s.',
     'Ligging overkapping en tuinberging in de tuin is indicatief.',
+    'Buurpand (nr. 14) is als gespiegelde massa zonder uitbouw toegevoegd, alleen voor schaduw en context.',
     'Losse meubels van de verkopers zijn weggelaten. Zwevend tv-meubel, lowboard met sierhaard en de Amerikaanse koelkast blijven en staan vast in het huis (maten deels geschat uit foto’s).',
   ],
 };

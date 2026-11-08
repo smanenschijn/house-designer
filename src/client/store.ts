@@ -26,6 +26,10 @@ interface AppState {
   rotateRequest: number;
   focusRequest: number;
   snap: boolean;
+  /** iso = isometrisch (orthografisch), persp = perspectief */
+  camMode: 'iso' | 'persp';
+  /** zon: datum (YYYY-MM-DD) en tijd in minuten na middernacht (lokale tijd) */
+  sun: { date: string; minutes: number };
 
   setUser: (u: User | null) => void;
   load: () => Promise<void>;
@@ -39,6 +43,8 @@ interface AppState {
   requestFocus: () => void;
   setSnap: (s: boolean) => void;
   setDragging: (id: string | null) => void;
+  setCamMode: (m: 'iso' | 'persp') => void;
+  setSun: (patch: Partial<{ date: string; minutes: number }>) => void;
 
   upsertItem: (it: Item) => void;
   removeItem: (id: string) => void;
@@ -68,6 +74,8 @@ export const useApp = create<AppState>((set, get) => ({
   rotateRequest: 0,
   focusRequest: 0,
   snap: true,
+  camMode: 'iso',
+  sun: { date: new Date().toISOString().slice(0, 10), minutes: 14 * 60 },
 
   setUser: (user) => set({ user }),
   load: async () => {
@@ -99,6 +107,8 @@ export const useApp = create<AppState>((set, get) => ({
   requestFocus: () => set((s) => ({ focusRequest: s.focusRequest + 1 })),
   setSnap: (snap) => set({ snap }),
   setDragging: (dragging) => set({ dragging }),
+  setCamMode: (camMode) => set({ camMode }),
+  setSun: (patch) => set((s) => ({ sun: { ...s.sun, ...patch } })),
 
   upsertItem: (it) =>
     set((s) => ({ items: s.items.some((x) => x.id === it.id) ? s.items.map((x) => (x.id === it.id ? it : x)) : [it, ...s.items], version: s.version + 0 })),

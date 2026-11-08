@@ -77,17 +77,17 @@ function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
         <>
           <mesh position={[0, 0.012 - (y - elevation), 0]} rotation-x={-Math.PI / 2} renderOrder={3}>
             <planeGeometry args={[w + 0.08, d + 0.08]} />
-            <meshBasicMaterial color={colliding ? '#e5484d' : '#2f7cf6'} transparent opacity={0.28} depthWrite={false} />
+            <meshBasicMaterial color={colliding ? '#ee7d74' : '#a6d8b8'} transparent opacity={0.28} depthWrite={false} />
           </mesh>
           <lineSegments position={[0, h / 2, 0]}>
             <edgesGeometry args={[new THREE.BoxGeometry(w + 0.02, h + 0.02, d + 0.02)]} />
-            <lineBasicMaterial color={colliding ? '#e5484d' : '#2f7cf6'} />
+            <lineBasicMaterial color={colliding ? '#ee7d74' : '#a6d8b8'} />
           </lineSegments>
           {/* pijl: voorkant */}
           {selected && (
             <mesh position={[0, 0.02 - (y - elevation), d / 2 + 0.12]} rotation-x={-Math.PI / 2}>
               <circleGeometry args={[0.07, 3, Math.PI / 2]} />
-              <meshBasicMaterial color="#2f7cf6" />
+              <meshBasicMaterial color="#a6d8b8" />
             </mesh>
           )}
         </>

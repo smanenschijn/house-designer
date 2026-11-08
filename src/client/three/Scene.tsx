@@ -1,86 +1,75 @@
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, OrthographicCamera } from '@react-three/drei';
+import { OrbitControls, OrthographicCamera, PerspectiveCamera, Sky } from '@react-three/drei';
+import { EffectComposer, N8AO, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { House } from '../../shared/house';
+import { sunDirection, sunPosition } from '../../shared/sun';
 import { useApp } from '../store';
-import { HouseView } from './HouseView';
-import { FurnitureLayer } from './Furniture';
 import { viewState } from '../viewState';
 import { roomEnvironment } from './environment';
+import { installDebugBridge } from './debug';
+import { FurnitureLayer } from './Furniture';
+import { HouseView } from './HouseView';
 
-const POLAR = 0.95; // ~54° vanaf verticaal: isometrisch gevoel
-const RADIUS = 80;
+const POLAR = 0.95; // ~54° vanaf verticaal
+const FOV = 40;
+const isMobile = () => typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 700;
 
-function houseCenter(house: House, levelIndex: number) {
-  const lv = house.levels[Math.min(levelIndex, house.levels.length - 1)];
+function houseExtent(house: House) {
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const r of house.levels[0].rooms)
     for (const [x, z] of r.polygon) {
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
     }
-  return { center: new THREE.Vector3((x0 + x1) / 2, lv.elevation, (z0 + z1) / 2), size: Math.max(x1 - x0, z1 - z0) };
+  return { center: new THREE.Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2), size: Math.max(x1 - x0, z1 - z0) };
 }
+
+/** zichtbare hoogte (m) in beeld, om tussen iso-zoom en perspectief-afstand te wisselen */
+const visibleHeight = { value: 18 };
 
 function CameraRig({ house }: { house: House }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const { camera, size } = useThree();
   const level = useApp((s) => s.level);
+  const camMode = useApp((s) => s.camMode);
   const rotateRequest = useApp((s) => s.rotateRequest);
   const focusRequest = useApp((s) => s.focusRequest);
   const anim = useRef<{ az: number } | null>(null);
   const targetY = useRef(0);
-  const lastAz = useRef(0);
-  const initFor = useRef<OrbitControlsImpl | null>(null);
+  const lastRot = useRef(0);
+  const initFor = useRef<THREE.Camera | null>(null);
+  const persp = camMode === 'persp';
 
-  // begin: kader het huis (in de eerste frame, zodat de controls zeker bestaan)
-  const init = (c: OrbitControlsImpl) => {
-    const { center, size: s } = houseCenter(house, 0);
-    const az = useApp.getState().azimuth;
-    const cam = camera as THREE.OrthographicCamera;
-    c.target.copy(center);
-    camera.position.set(center.x + RADIUS * Math.sin(POLAR) * Math.sin(az), center.y + RADIUS * Math.cos(POLAR), center.z + RADIUS * Math.sin(POLAR) * Math.cos(az));
-    cam.zoom = Math.min(size.width, size.height) / (s * 1.25);
-    cam.updateProjectionMatrix();
+  const place = (c: OrbitControlsImpl, target: THREE.Vector3, az: number, polar: number) => {
+    const isPersp = (camera as THREE.PerspectiveCamera).isPerspectiveCamera;
+    const dist = isPersp ? visibleHeight.value / 2 / Math.tan((FOV / 2) * (Math.PI / 180)) : 80;
+    c.target.copy(target);
+    camera.position.set(target.x + dist * Math.sin(polar) * Math.sin(az), target.y + dist * Math.cos(polar), target.z + dist * Math.sin(polar) * Math.cos(az));
+    if (!isPersp) {
+      const cam = camera as THREE.OrthographicCamera;
+      cam.zoom = size.height / visibleHeight.value;
+      cam.updateProjectionMatrix();
+    }
     c.update();
-    initFor.current = c;
   };
-
-  // verdieping wisselen: doelhoogte mee laten schuiven
-  useEffect(() => {
-    const li = level === 'all' ? 1 : level;
-    targetY.current = house.levels[Math.min(li, house.levels.length - 1)].elevation;
-  }, [level, house]);
-
-  // 90° draaien
-  useEffect(() => {
-    if (!rotateRequest || !controls.current) return;
-    const cur = controls.current.getAzimuthalAngle();
-    const step = Math.PI / 2;
-    const snapped = Math.round((cur - Math.PI / 4) / step) * step + Math.PI / 4;
-    const dir = rotateRequest > lastAz.current ? 1 : -1;
-    lastAz.current = rotateRequest;
-    anim.current = { az: snapped + dir * step };
-  }, [rotateRequest]);
-
-  useEffect(() => {
-    if (!focusRequest || !controls.current) return;
-    const { center, size: s } = houseCenter(house, 0);
-    const c = controls.current;
-    const delta = new THREE.Vector3(center.x, c.target.y, center.z).sub(c.target);
-    c.target.add(delta);
-    camera.position.add(delta);
-    (camera as THREE.OrthographicCamera).zoom = Math.min(size.width, size.height) / (s * 1.25);
-    camera.updateProjectionMatrix();
-    c.update();
-  }, [focusRequest, house, camera, size]);
 
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c) return;
-    if (initFor.current !== c) init(c);
-    // doelhoogte animeren
+    // eerste frame met deze camera: positie overnemen (ook bij wisselen iso/perspectief)
+    if (initFor.current !== camera) {
+      const first = initFor.current === null;
+      if (first) {
+        const { center, size: s } = houseExtent(house);
+        visibleHeight.value = s * 1.25 * Math.max(1, size.height / size.width);
+        place(c, center, useApp.getState().azimuth, POLAR);
+      } else {
+        place(c, viewState.target.clone(), useApp.getState().azimuth, Math.min(c.getPolarAngle(), camera.type === 'OrthographicCamera' ? 1.25 : 1.5));
+      }
+      initFor.current = camera;
+    }
     const dy = targetY.current - c.target.y;
     if (Math.abs(dy) > 0.001) {
       const step = dy * Math.min(1, dt * 8);
@@ -100,9 +89,35 @@ function CameraRig({ house }: { house: House }) {
       if (Math.abs(diff) < 0.002) anim.current = null;
     }
     viewState.target.copy(c.target);
+    // zichtbare hoogte bijhouden voor het wisselen van camera
+    if ((camera as THREE.OrthographicCamera).isOrthographicCamera) visibleHeight.value = size.height / (camera as THREE.OrthographicCamera).zoom;
+    else visibleHeight.value = 2 * camera.position.distanceTo(c.target) * Math.tan((FOV / 2) * (Math.PI / 180));
     const az = c.getAzimuthalAngle();
     if (Math.abs(az - useApp.getState().azimuth) > 0.01) useApp.getState().setAzimuth(az);
   });
+
+  useEffect(() => {
+    const li = level === 'all' ? 1 : level;
+    targetY.current = house.levels[Math.min(li, house.levels.length - 1)].elevation;
+  }, [level, house]);
+
+  useEffect(() => {
+    if (!rotateRequest || !controls.current) return;
+    const cur = controls.current.getAzimuthalAngle();
+    const step = Math.PI / 2;
+    const snapped = Math.round((cur - Math.PI / 4) / step) * step + Math.PI / 4;
+    const dir = rotateRequest > lastRot.current ? 1 : -1;
+    lastRot.current = rotateRequest;
+    anim.current = { az: snapped + dir * step };
+  }, [rotateRequest]);
+
+  useEffect(() => {
+    if (!focusRequest || !controls.current) return;
+    const { center, size: s } = houseExtent(house);
+    visibleHeight.value = s * 1.25 * Math.max(1, size.height / size.width);
+    place(controls.current, new THREE.Vector3(center.x, controls.current.target.y, center.z), controls.current.getAzimuthalAngle(), controls.current.getPolarAngle());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
 
   return (
     <OrbitControls
@@ -110,70 +125,115 @@ function CameraRig({ house }: { house: House }) {
       makeDefault
       enableDamping
       dampingFactor={0.12}
-      minPolarAngle={0.45}
-      maxPolarAngle={1.25}
+      minPolarAngle={persp ? 0.15 : 0.45}
+      maxPolarAngle={persp ? 1.5 : 1.25}
       minZoom={8}
       maxZoom={400}
+      minDistance={1.5}
+      maxDistance={120}
       screenSpacePanning={false}
+      zoomSpeed={persp ? 2.2 : 1}
       mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
       touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
     />
   );
 }
 
-function Lights() {
+/** Zon op de berekende stand voor Nijverdal, plus hemel- en omgevingslicht. */
+function SunAndSky({ house }: { house: House }) {
   const { gl, scene } = useThree();
-  const mobile = typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 700;
+  const sun = useApp((s) => s.sun);
+  const camMode = useApp((s) => s.camMode);
+  const mobile = isMobile();
+
+  const { dir, elevation } = useMemo(() => {
+    const [y, m, d] = sun.date.split('-').map(Number);
+    const date = new Date(y, m - 1, d, Math.floor(sun.minutes / 60), sun.minutes % 60);
+    const p = sunPosition(date);
+    return { dir: new THREE.Vector3(...sunDirection(p, house.north)), elevation: p.elevation };
+  }, [sun, house]);
+
+  const day = THREE.MathUtils.smoothstep(elevation, -4, 12);
+  const sunStrength = THREE.MathUtils.smoothstep(elevation, -1, 8);
+  // laag staande zon: warmer licht
+  const sunColor = new THREE.Color().setHSL(0.09, 0.9, THREE.MathUtils.lerp(0.62, 0.97, THREE.MathUtils.smoothstep(elevation, 0, 25)));
+  const center = useMemo(() => new THREE.Vector3(1.5, 0, 0), []);
+  const pos = center.clone().add(dir.clone().multiplyScalar(60));
+
   useEffect(() => {
     gl.shadowMap.type = THREE.PCFSoftShadowMap;
-    // zachte omgevingsreflectie (lokaal gegenereerd) zodat metaal en glas er goed uitzien
-    const env = roomEnvironment(gl);
-    scene.environment = env;
-    scene.environmentIntensity = 0.35;
+    scene.environment = roomEnvironment(gl);
+    if (import.meta.env.DEV) installDebugBridge(scene, gl);
     return () => {
       scene.environment = null;
     };
   }, [gl, scene]);
+  useEffect(() => {
+    scene.environmentIntensity = 0.06 + 0.14 * day;
+    scene.background = camMode === 'persp' ? null : new THREE.Color().lerpColors(new THREE.Color('#1d2430'), new THREE.Color('#dfe7ec'), day);
+  }, [scene, day, camMode]);
+
+  const target = useMemo(() => {
+    const o = new THREE.Object3D();
+    o.position.copy(center);
+    return o;
+  }, [center]);
+
   return (
     <>
-      <hemisphereLight args={['#ffffff', '#b9ad96', 1.6]} />
+      {camMode === 'persp' && <Sky distance={4500} sunPosition={[dir.x, dir.y, dir.z]} turbidity={6} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.8} />}
+      <hemisphereLight args={['#dfeaf5', '#9a8f7c', 0.15 + 0.55 * day]} />
+      <primitive object={target} />
       <directionalLight
-        position={[-14, 22, 10]}
-        intensity={2.2}
-        castShadow
-        shadow-mapSize={[mobile ? 1024 : 2048, mobile ? 1024 : 2048]}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
+        position={pos}
+        target={target}
+        color={sunColor}
+        intensity={4.2 * sunStrength}
+        castShadow={sunStrength > 0}
+        shadow-mapSize={[mobile ? 2048 : 4096, mobile ? 2048 : 4096]}
+        shadow-camera-left={-24}
+        shadow-camera-right={24}
+        shadow-camera-top={24}
+        shadow-camera-bottom={-24}
         shadow-camera-near={1}
-        shadow-camera-far={70}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.03}
-      >
-        <object3D attach="target" position={[2.8, 0, 3]} />
-      </directionalLight>
+        shadow-camera-far={140}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.025}
+        shadow-radius={3}
+      />
     </>
   );
 }
 
+function Effects() {
+  const mobile = isMobile();
+  return (
+    <EffectComposer multisampling={0} enableNormalPass={false}>
+      <N8AO aoRadius={0.8} distanceFalloff={0.6} intensity={2.2} quality={mobile ? 'performance' : 'medium'} />
+      <SMAA />
+    </EffectComposer>
+  );
+}
+
 export function Scene({ house }: { house: House }) {
+  const camMode = useApp((s) => s.camMode);
   return (
     <Canvas
       shadows
       dpr={[1, 2]}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
+      gl={{ antialias: false, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       onContextMenu={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
     >
-      <color attach="background" args={['#e9e4da']} />
-      <OrthographicCamera makeDefault position={[-40, 50, 60]} near={-200} far={400} zoom={40} />
+      <OrthographicCamera makeDefault={camMode === 'iso'} position={[-40, 50, 60]} near={1} far={600} zoom={40} />
+      <PerspectiveCamera makeDefault={camMode === 'persp'} position={[-20, 20, 30]} fov={FOV} near={0.1} far={6000} />
       <CameraRig house={house} />
-      <Lights />
+      <SunAndSky house={house} />
       <Suspense fallback={null}>
         <HouseView house={house} />
         <FurnitureLayer house={house} />
       </Suspense>
+      <Effects />
     </Canvas>
   );
 }

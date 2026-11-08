@@ -260,13 +260,87 @@ export const HOUSE_COLORS = {
   brick: new THREE.Color('#9a5a42'),
   party: new THREE.Color('#d9d4cb'),
   cap: new THREE.Color('#4b4744'),
+  capLight: new THREE.Color('#d9d3c9'),
+  white: new THREE.Color('#ffffff'),
   frame: '#2e3236',
   roof: '#4a4442',
   fence: '#7a6048',
 };
 
-export const wallMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
-export const glassMaterial = new THREE.MeshPhysicalMaterial({ color: '#a9c6d3', roughness: 0.05, transparent: true, opacity: 0.28, depthWrite: false });
+/** baksteen (waalformaat 21 × 5 cm, voeg 1 cm), textuur van 0,88 × 0,50 m */
+function brickTexture(): THREE.Texture {
+  return canvasTexture('baksteen', 1024, (ctx, S) => {
+    const r = rng(17);
+    const cols = 4;
+    const rows = 8;
+    const bw = S / cols;
+    const bh = S / rows;
+    const joint = S * (0.01 / 0.5);
+    ctx.fillStyle = '#b9b2a6';
+    ctx.fillRect(0, 0, S, S);
+    for (let row = 0; row < rows; row++) {
+      const off = row % 2 ? bw / 2 : 0;
+      for (let c = -1; c <= cols; c++) {
+        const x = c * bw + off;
+        const base = new THREE.Color().setHSL(0.03 + r() * 0.025, 0.42 + r() * 0.15, 0.33 + r() * 0.1);
+        ctx.fillStyle = `#${base.getHexString()}`;
+        ctx.fillRect(x + joint / 2, row * bh + joint / 2, bw - joint, bh - joint);
+        // korrel
+        for (let k = 0; k < 40; k++) {
+          ctx.fillStyle = `rgba(${r() > 0.5 ? '0,0,0' : '255,255,255'},${0.04 + r() * 0.05})`;
+          ctx.fillRect(x + joint / 2 + r() * (bw - joint), row * bh + joint / 2 + r() * (bh - joint), 3, 2);
+        }
+      }
+    }
+  });
+}
+
+/** licht gestructureerd stucwerk (grijswaarden, wordt met kleur vermenigvuldigd) */
+function plasterTexture(): THREE.Texture {
+  return canvasTexture('stuc', 256, (ctx, S) => {
+    const r = rng(29);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 2500; i++) {
+      ctx.fillStyle = `rgba(0,0,0,${r() * 0.035})`;
+      ctx.fillRect(r() * S, r() * S, 2 + r() * 3, 2 + r() * 3);
+    }
+  });
+}
+
+const wallTex = (t: THREE.Texture, w: number, h: number) => {
+  const m = t.clone();
+  m.needsUpdate = true;
+  m.repeat.set(1 / w, 1 / h);
+  return m;
+};
+
+/** muren: uv in meters (u langs de muur, v omhoog), vertexkleur voor bovenkanten */
+export const paintMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, color: '#ede8e0' });
+export const brickMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#ffffff' });
+export const partyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#cfcac2' });
+if (typeof document !== 'undefined') {
+  paintMaterial.map = wallTex(plasterTexture(), 1.2, 1.2);
+  brickMaterial.map = wallTex(brickTexture(), 0.88, 0.5);
+}
+export const skirtingMaterial = new THREE.MeshStandardMaterial({ color: '#f7f6f3', roughness: 0.5 });
+export const interiorDoorMaterial = new THREE.MeshStandardMaterial({ color: '#f5f4f1', roughness: 0.45 });
+export const innerSillMaterial = new THREE.MeshStandardMaterial({ color: '#f1efea', roughness: 0.35 });
+export const outerSillMaterial = new THREE.MeshStandardMaterial({ color: '#3a3d41', roughness: 0.45, metalness: 0.5 });
+export const handleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.35, metalness: 0.8 });
+export const neighborMaterial = new THREE.MeshStandardMaterial({ color: '#c9c3ba', roughness: 0.95 });
+
+/** onzichtbaar in beeld, werpt wel schaduw (plafonds, dak, volledige muren) */
+export const shadowOnlyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+export const glassMaterial = new THREE.MeshPhysicalMaterial({
+  color: '#b9d2dc',
+  roughness: 0.02,
+  metalness: 0.1,
+  transparent: true,
+  opacity: 0.22,
+  depthWrite: false,
+  envMapIntensity: 1.5,
+});
 export const frameMaterial = new THREE.MeshStandardMaterial({ color: HOUSE_COLORS.frame, roughness: 0.5 });
 export const doorMaterial = new THREE.MeshStandardMaterial({ color: '#2b3036', roughness: 0.45 });
 export const roofMaterial = (() => {

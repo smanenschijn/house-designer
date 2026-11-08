@@ -119,6 +119,8 @@ export interface House {
   north: V2;
   levels: Level[];
   roofs: (GableRoof | FlatRoof)[];
+  /** buurpanden als eenvoudige massa (voor schaduw en context) */
+  neighbors?: { name: string; x0: number; x1: number; z0: number; z1: number; height: number; roof?: GableRoof }[];
   outdoor: {
     bounds: { x0: number; x1: number; z0: number; z1: number };
     areas: Room[];

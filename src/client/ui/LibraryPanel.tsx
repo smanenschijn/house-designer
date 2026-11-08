@@ -5,6 +5,7 @@ import { api } from '../api';
 import { attempt, useApp } from '../store';
 import { recipeThumbnail } from '../three/thumbnail';
 import { fmtPrice, fmtSize, placeItem } from './actions';
+import { Icon } from './Icon';
 
 function Thumb({ item }: { item: Item }) {
   const src = useMemo(() => {
@@ -51,11 +52,11 @@ export function LibraryPanel({ house }: { house: House }) {
   const userName = (id: string | null) => users.find((u) => u.id === id)?.displayName ?? '';
 
   return (
-    <aside className="panel library">
+    <aside className="panel library glass">
       <div className="panel-head">
         <h2>Bibliotheek</h2>
         <button className="ghost close" onClick={() => setPanel(null)} aria-label="Sluiten">
-          ✕
+          <Icon name="close" />
         </button>
       </div>
       <div className="lib-tools">
@@ -79,7 +80,7 @@ export function LibraryPanel({ house }: { house: House }) {
           </select>
         </div>
         <button className="primary block" onClick={() => setPanel('editor', null)}>
-          + Nieuw meubel
+          <Icon name="plus" /> Nieuw meubel
         </button>
       </div>
 
@@ -112,8 +113,8 @@ export function LibraryPanel({ house }: { house: House }) {
                   Bewerken
                 </button>
                 {it.meta.url && (
-                  <a className="small linkbtn" href={it.meta.url} target="_blank" rel="noreferrer">
-                    Link
+                  <a className="small linkbtn" href={it.meta.url} target="_blank" rel="noreferrer" title="Productpagina">
+                    <Icon name="link" size={14} />
                   </a>
                 )}
                 <button
@@ -125,7 +126,7 @@ export function LibraryPanel({ house }: { house: House }) {
                     await attempt(() => api.deleteItem(it.id));
                   }}
                 >
-                  ✕
+                  <Icon name="trash" size={14} />
                 </button>
               </div>
             </div>
@@ -134,7 +135,7 @@ export function LibraryPanel({ house }: { house: House }) {
       </div>
       {placedTotal > 0 && (
         <div className="lib-foot">
-          Nog te kopen in het huis: <strong>{fmtPrice(placedTotal)}</strong>
+          <span>Nog te kopen in het huis</span> <strong>{fmtPrice(placedTotal)}</strong>
         </div>
       )}
     </aside>

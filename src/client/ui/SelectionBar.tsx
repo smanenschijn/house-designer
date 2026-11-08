@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { House } from '../../shared/house';
 import { roomAt } from '../../shared/placement';
 import { useApp } from '../store';
+import { Icon } from './Icon';
 import { deleteSelected, duplicateSelected, fmtSize, nudgeSelected, rotateSelected } from './actions';
 
 export function SelectionBar({ house }: { house: House }) {
@@ -70,7 +71,7 @@ export function SelectionBar({ house }: { house: House }) {
   const room = level ? roomAt(level, [placement.x, placement.z]) : null;
 
   return (
-    <div className="selbar">
+    <div className="selbar glass">
       <div className="sel-info">
         <strong>{item.name}</strong>
         <span className="muted">
@@ -80,25 +81,25 @@ export function SelectionBar({ house }: { house: House }) {
       </div>
       <div className="sel-actions">
         <button onClick={() => rotateSelected(90)} title="Draai 90° (R)">
-          ⟲ 90°
+          <Icon name="rotateLeft" size={16} /> 90°
         </button>
         <button onClick={() => rotateSelected(15)} title="Draai 15° (Q)">
-          ⟲ 15°
+          <Icon name="rotateLeft" size={16} /> 15°
         </button>
         <button onClick={() => rotateSelected(-15)} title="Draai -15° (E)">
-          ⟳ 15°
+          <Icon name="rotateRight" size={16} /> 15°
         </button>
-        <button onClick={duplicateSelected} title="Dupliceren (Ctrl/⌘+D)">
-          ⧉
+        <button className="icon" onClick={duplicateSelected} title="Dupliceren (Ctrl/⌘+D)" aria-label="Dupliceren">
+          <Icon name="copy" />
         </button>
-        <button onClick={() => setPanel('editor', item.id)} title="Meubel bewerken">
-          ✎
+        <button className="icon" onClick={() => setPanel('editor', item.id)} title="Meubel bewerken" aria-label="Bewerken">
+          <Icon name="edit" />
         </button>
-        <button className={snap ? 'on' : ''} onClick={() => setSnap(!snap)} title="Magnetisch tegen muren (Alt = tijdelijk uit)">
-          🧲
+        <button className={`icon ${snap ? 'on' : ''}`} onClick={() => setSnap(!snap)} title="Magnetisch tegen muren (Alt = tijdelijk uit)" aria-label="Magnetisch">
+          <Icon name="magnet" />
         </button>
-        <button className="danger" onClick={deleteSelected} title="Verwijderen (Delete)">
-          🗑
+        <button className="icon danger" onClick={deleteSelected} title="Verwijderen (Delete)" aria-label="Verwijderen">
+          <Icon name="trash" />
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { ApiError, api, type Account, type UserDetail } from '../api';
 import { useApp } from '../store';
+import { Icon } from './Icon';
 
 const passkeySupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
 
@@ -81,11 +82,11 @@ export function AccountPanel() {
   const [nu, setNu] = useState({ username: '', displayName: '', password: '' });
 
   return (
-    <aside className="panel account">
+    <aside className="panel account glass">
       <div className="panel-head">
         <h2>Account</h2>
         <button className="ghost close" onClick={() => setPanel(null)} aria-label="Sluiten">
-          ✕
+          <Icon name="close" />
         </button>
       </div>
       <div className="editor-body">
@@ -107,7 +108,7 @@ export function AccountPanel() {
           {account?.passkeys.map((p) => (
             <div className="acc-row" key={p.id}>
               <div>
-                <strong>🔑 {p.name}</strong>
+                <strong>{p.name}</strong>
                 <div className="muted small-text">
                   Toegevoegd {fmtDate(p.createdAt)} · laatst gebruikt {fmtDate(p.lastUsed)}
                 </div>
@@ -122,7 +123,7 @@ export function AccountPanel() {
           ))}
           {passkeySupported ? (
             <button className="primary" onClick={addPasskey}>
-              Passkey toevoegen
+              <Icon name="key" /> Passkey toevoegen
             </button>
           ) : (
             <div className="muted small-text">Deze browser ondersteunt geen passkeys.</div>
@@ -179,7 +180,7 @@ export function AccountPanel() {
                     className="small danger"
                     onClick={() => confirm(`${u.displayName} verwijderen? Meubels en plaatsingen blijven bestaan.`) && run(() => api.deleteUser(u.id), 'Gebruiker verwijderd')}
                   >
-                    ✕
+                    <Icon name="trash" size={14} />
                   </button>
                 </div>
               )}
@@ -220,7 +221,7 @@ export function AccountPanel() {
             location.reload();
           }}
         >
-          Uitloggen
+          <Icon name="logout" /> Uitloggen
         </button>
       </div>
     </aside>

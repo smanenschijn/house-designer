@@ -1,5 +1,7 @@
 import type { House } from '../../shared/house';
 import { useApp } from '../store';
+import { Icon } from './Icon';
+import { SunControl } from './SunControl';
 
 export function TopBar({ house }: { house: House }) {
   const level = useApp((s) => s.level);
@@ -12,6 +14,8 @@ export function TopBar({ house }: { house: House }) {
   const setPanel = useApp((s) => s.setPanel);
   const user = useApp((s) => s.user);
   const azimuth = useApp((s) => s.azimuth);
+  const camMode = useApp((s) => s.camMode);
+  const setCamMode = useApp((s) => s.setCamMode);
 
   // kompas: noordvector geprojecteerd op scherm-rechts en scherm-boven
   const [nx, nz] = house.north;
@@ -21,12 +25,12 @@ export function TopBar({ house }: { house: House }) {
 
   return (
     <div className="topbar">
-      <div className="brand" title={house.name}>
-        <span className="brand-dot" />
+      <div className="brand glass" title={house.name}>
         <span className="brand-name">Waalstraat 16</span>
+        <span className="brand-sub">Nijverdal</span>
       </div>
 
-      <div className="seg levels" role="tablist" aria-label="Verdieping">
+      <div className="seg levels glass" role="tablist" aria-label="Verdieping">
         {house.levels.map((l, i) => (
           <button key={l.id} className={level === i ? 'on' : ''} onClick={() => setLevel(i)} title={l.name}>
             {l.short}
@@ -37,12 +41,13 @@ export function TopBar({ house }: { house: House }) {
         </button>
       </div>
 
-      <div className="seg walls" aria-label="Muren">
+      <div className="seg walls glass" aria-label="Buitenmuren">
+        <span className="seg-label">Gevels</span>
         {(
           [
-            ['up', 'Hoog', 'Muren hoog'],
-            ['cutaway', 'Weg', 'Muren aan de camerakant weggesneden'],
-            ['down', 'Laag', 'Alle muren laag'],
+            ['up', 'Hoog', 'Alle muren hoog'],
+            ['cutaway', 'Weg', 'Buitenmuren aan de camerakant laag'],
+            ['down', 'Laag', 'Alle buitenmuren laag'],
           ] as const
         ).map(([m, label, title]) => (
           <button key={m} className={wallMode === m ? 'on' : ''} onClick={() => setWallMode(m)} title={title} disabled={level === 'all'}>
@@ -51,29 +56,40 @@ export function TopBar({ house }: { house: House }) {
         ))}
       </div>
 
-      <div className="tools">
+      <div className="tools glass">
         <button className="icon" onClick={() => requestRotate(-1)} title="Draai 90° linksom" aria-label="Draai linksom">
-          ⟲
+          <Icon name="rotateLeft" />
         </button>
         <button className="icon" onClick={() => requestRotate(1)} title="Draai 90° rechtsom" aria-label="Draai rechtsom">
-          ⟳
+          <Icon name="rotateRight" />
         </button>
         <button className="icon" onClick={requestFocus} title="Hele huis in beeld" aria-label="Centreren">
-          ⌖
+          <Icon name="focus" />
         </button>
+        <button
+          className={`icon cam ${camMode === 'persp' ? 'on' : ''}`}
+          onClick={() => setCamMode(camMode === 'iso' ? 'persp' : 'iso')}
+          title={camMode === 'iso' ? 'Naar perspectief' : 'Naar isometrisch'}
+          aria-label="Camera"
+        >
+          {camMode === 'iso' ? 'ISO' : '3D'}
+        </button>
+        <SunControl />
         <div className="compass" title="Noorden">
-          <span style={{ transform: `rotate(${compassDeg}deg)` }}>▲</span>
-          <small>N</small>
+          <span style={{ transform: `rotate(${compassDeg}deg)` }}>
+            <Icon name="north" size={16} fill="currentColor" strokeWidth={1} />
+          </span>
         </div>
       </div>
 
       <div className="spacer" />
 
       <button className={`primary libbtn ${panel === 'library' ? 'on' : ''}`} onClick={() => setPanel(panel === 'library' ? null : 'library')}>
+        <Icon name="library" />
         Bibliotheek
       </button>
       {user && (
-        <button className={`ghost user ${panel === 'account' ? 'on' : ''}`} title="Account en gebruikers" onClick={() => setPanel(panel === 'account' ? null : 'account')}>
+        <button className={`user glass ${panel === 'account' ? 'on' : ''}`} title="Account en gebruikers" onClick={() => setPanel(panel === 'account' ? null : 'account')}>
           {user.displayName.slice(0, 1).toUpperCase()}
         </button>
       )}

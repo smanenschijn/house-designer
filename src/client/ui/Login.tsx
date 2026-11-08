@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { ApiError, api, type User } from '../api';
+import { Icon } from './Icon';
 
 const passkeySupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
 
@@ -34,6 +35,7 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
   return (
     <div className="login">
       <form
+        className="glass"
         onSubmit={async (e) => {
           e.preventDefault();
           if (pending) return withPasskey(pending);
@@ -55,6 +57,10 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
           }
         }}
       >
+        <div className="mark">
+          <Icon name="cube" size={20} />
+        </div>
+        <div className="eyebrow">Nijverdal · ons nieuwe huis</div>
         <h1>Waalstraat 16</h1>
         <p className="muted">{pending ? 'Bevestig dat jij het bent met je passkey' : 'Log in om verder te gaan'}</p>
         {!pending ? (
@@ -76,7 +82,7 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
                   <span>of</span>
                 </div>
                 <button type="button" className="block passkey-btn" disabled={busy} onClick={() => withPasskey()}>
-                  🔑 Inloggen met passkey
+                  <Icon name="key" /> Inloggen met passkey
                 </button>
               </>
             )}
@@ -84,7 +90,7 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
         ) : (
           <>
             <button className="primary block" disabled={busy}>
-              {busy ? 'Wachten op passkey…' : '🔑 Gebruik passkey'}
+              <Icon name="key" /> {busy ? 'Wachten op passkey…' : 'Gebruik passkey'}
             </button>
             <button
               type="button"

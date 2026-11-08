@@ -4,6 +4,7 @@ import { TEMPLATES, TEMPLATE_MAP, type TemplateParams } from '../../shared/templ
 import { api } from '../api';
 import { attempt, useApp } from '../store';
 import { recipeThumbnail } from '../three/thumbnail';
+import { Icon } from './Icon';
 
 let previewCounter = 0;
 
@@ -109,11 +110,11 @@ export function ItemEditor() {
   );
 
   return (
-    <aside className="panel editor">
+    <aside className="panel editor glass">
       <div className="panel-head">
         <h2>{existing ? 'Meubel bewerken' : 'Nieuw meubel'}</h2>
         <button className="ghost close" onClick={() => setPanel('library')} aria-label="Terug">
-          ✕
+          <Icon name="close" />
         </button>
       </div>
       <div className="editor-body">
