@@ -15,6 +15,7 @@ import { renderParams } from '../renderMode';
 import { FurnitureLayer } from './Furniture';
 import { HouseView } from './HouseView';
 import { WalkControls } from './WalkControls';
+import { WallHighlight } from './WallHighlight';
 
 const POLAR = 0.95; // ~54° vanaf verticaal
 const FOV = 40;
@@ -307,6 +308,7 @@ export function Scene({ house }: { house: House }) {
       <Suspense fallback={null}>
         <HouseView house={house} />
         <FurnitureLayer house={house} />
+        <WallHighlight house={house} />
       </Suspense>
       <Effects />
       <ShadowUpdater />

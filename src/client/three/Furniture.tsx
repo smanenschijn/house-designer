@@ -3,7 +3,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { House } from '../../shared/house';
 import type { Item, Placement } from '../../shared/recipe';
-import { snapToWalls } from '../../shared/placement';
+import { pointInPolygon, snapToWalls } from '../../shared/placement';
 import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
@@ -110,7 +110,7 @@ export function FurnitureLayer({ house }: { house: House }) {
  * niet mee gaan pannen als je een meubel vastpakt (muis én touch).
  */
 function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | null>) {
-  const { gl, camera, controls } = useThree();
+  const { gl, camera, controls, scene } = useThree();
   useEffect(() => {
     const el = gl.domElement;
     const raycaster = new THREE.Raycaster();
@@ -142,6 +142,45 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
         }
       }
       return null;
+    };
+
+    /** welk muurvlak (kant naar een kamer) zit onder de cursor? */
+    const pickWall = (x: number, y: number) => {
+      const lvl = activeLevel();
+      if (!lvl) return null;
+      setNdc(x, y);
+      const hits = raycaster.intersectObjects(scene.children, true);
+      // raycasting negeert zichtbaarheid van ouders: zelf controleren
+      const shown = (o: THREE.Object3D | null): boolean => {
+        for (let x = o; x; x = x.parent) if (!x.visible) return false;
+        return true;
+      };
+      const h = hits.find((q) => (q.object as THREE.Mesh).isMesh && q.face && shown(q.object));
+      if (!h || h.object.userData?.wallLevel !== lvl.id || !h.face) return null;
+      const nrm = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+      if (Math.abs(nrm.y) > 0.5) return null; // bovenkant van een muur
+      let best: { wallId: string; side: 1 | -1; err: number; n: [number, number] } | null = null;
+      for (const w of lvl.walls) {
+        const dx = w.b[0] - w.a[0];
+        const dz = w.b[1] - w.a[1];
+        const len = Math.hypot(dx, dz);
+        const dir = [dx / len, dz / len];
+        const n: [number, number] = [-dir[1], dir[0]];
+        const px = h.point.x - w.a[0];
+        const pz = h.point.z - w.a[1];
+        const u = px * dir[0] + pz * dir[1];
+        const d = px * n[0] + pz * n[1];
+        if (u < -0.05 || u > len + 0.05) continue;
+        const err = Math.abs(Math.abs(d) - w.thickness / 2);
+        if (err > 0.04) continue;
+        const side: 1 | -1 = d >= 0 ? 1 : -1;
+        if (!best || err < best.err) best = { wallId: w.id, side, err, n };
+      }
+      if (!best) return null;
+      const probe: [number, number] = [h.point.x + best.n[0] * best.side * 0.15, h.point.z + best.n[1] * best.side * 0.15];
+      const room = lvl.rooms.find((r) => pointInPolygon(probe, r.polygon));
+      if (!room) return null; // buitenkant van de gevel
+      return { levelId: lvl.id, wallId: best.wallId, side: best.side, roomId: room.id };
     };
 
     const activeLevel = () => {
@@ -291,7 +330,13 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
         return;
       }
       if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 6 && performance.now() - tap.t < 400) {
-        useApp.getState().select(null);
+        const st = useApp.getState();
+        const wall = st.editMode && st.camMode !== 'walk' ? pickWall(e.clientX, e.clientY) : null;
+        if (wall) st.selectWall(wall);
+        else {
+          st.select(null);
+          st.selectWall(null);
+        }
       }
       tap = null;
     };
@@ -307,5 +352,5 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       window.removeEventListener('pointercancel', onUp);
       cancelPress();
     };
-  }, [gl, camera, controls, house, groupRef]);
+  }, [gl, camera, controls, scene, house, groupRef]);
 }

@@ -6,10 +6,46 @@ import { pointInPolygon } from './placement';
  * Een plaatsing hoort bij de variant van de kamer waar hij staat; alleen de actieve
  * variant van een kamer is zichtbaar. Meubels buiten een kamer (tuin) horen bij "buiten".
  */
+export const WALLPAPERS = [
+  { id: 'streep', name: 'Streep', tile: [0.36, 0.36], color: '#ece6db', accent: '#b9c9b4' },
+  { id: 'stip', name: 'Stip', tile: [0.22, 0.22], color: '#f1ede6', accent: '#40513f' },
+  { id: 'ruit', name: 'Ruit', tile: [0.3, 0.3], color: '#e8e2d7', accent: '#a69a86' },
+  { id: 'botanisch', name: 'Botanisch', tile: [0.62, 0.62], color: '#2f3d32', accent: '#8fb39a' },
+  { id: 'waaier', name: 'Art-deco waaier', tile: [0.3, 0.3], color: '#1f2a26', accent: '#c9a96a' },
+  { id: 'linnen', name: 'Linnen', tile: [0.5, 0.5], color: '#d9cfc0', accent: '#bfb3a2' },
+  { id: 'terrazzo', name: 'Terrazzo', tile: [0.6, 0.6], color: '#ebe6de', accent: '#c27d5c' },
+] as const;
+export type WallpaperId = (typeof WALLPAPERS)[number]['id'];
+
+/** afwerking van een muurvlak: verf of behang */
+export type WallFinish = { kind: 'paint'; color: string } | { kind: 'wallpaper'; pattern: WallpaperId; color: string; accent: string };
+
 export interface RoomFinish {
   floor?: FloorMaterial;
-  /** wandkleur binnen, #rrggbb */
+  /** (oud) wandkleur binnen, #rrggbb — gebruikt als `wall` ontbreekt */
   wallColor?: string;
+  /** standaard voor alle wanden van de kamer */
+  wall?: WallFinish;
+  /** afwijkende afwerking per muurvlak (sleutel: faceKey) */
+  faces?: Record<string, WallFinish>;
+}
+
+/** sleutel van één kant van een muur */
+export const faceKey = (wallId: string, side: number) => `${wallId}:${side > 0 ? '+' : '-'}`;
+
+export function roomWallFinish(f: RoomFinish | null | undefined): WallFinish {
+  return f?.wall ?? { kind: 'paint', color: f?.wallColor ?? DEFAULT_WALL };
+}
+
+export function faceFinish(f: RoomFinish | null | undefined, wallId: string, side: number): WallFinish {
+  return f?.faces?.[faceKey(wallId, side)] ?? roomWallFinish(f);
+}
+
+export const wallFinishKey = (w: WallFinish) => (w.kind === 'paint' ? `p${w.color}` : `w${w.pattern}${w.color}${w.accent}`);
+
+export function describeWallFinish(w: WallFinish) {
+  if (w.kind === 'paint') return `verf ${WALL_COLORS.find((c) => c.hex === w.color.toLowerCase())?.name ?? w.color}`;
+  return `behang ${WALLPAPERS.find((p) => p.id === w.pattern)?.name ?? w.pattern} (${w.color} / ${w.accent})`;
 }
 
 export interface Variant {

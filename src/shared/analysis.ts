@@ -1,6 +1,7 @@
 import type { House, Level, Room, V2 } from './house';
 import type { Item, Part, Placement, Recipe } from './recipe';
 import { corners, pointInPolygon, rectsOverlap, wallRects } from './placement';
+import { roomFaces } from './walls';
 
 const DEG = Math.PI / 180;
 
@@ -227,6 +228,7 @@ export function describeHouse(house: House) {
             area_m2: r2(polygonArea(r.polygon)),
             bounds: { x: [r2(b.x0), r2(b.x1)], z: [r2(b.z0), r2(b.z1)] },
             polygon: r.polygon.map(([x, z]) => [r2(x), r2(z)]),
+            walls: roomFaces(house, level, r).map((f) => `${f.direction}: ${f.length} m`),
             openings,
           };
         }),

@@ -16,30 +16,33 @@ import {
   buildSkirting,
   buildWalls,
   cutawaySet,
-  type WallColorAt,
+  type FaceFinishAt,
   type WallMode,
 } from './houseMesh';
 import { pointInPolygon } from '../../shared/placement';
-import { activeFinishes, type RoomFinish } from '../../shared/variants';
-import { brickMaterial, groundMaterial, paintMaterial, partyMaterial, skirtingMaterial } from './materials';
+import { activeFinishes, faceFinish, type RoomFinish } from '../../shared/variants';
+import { brickMaterial, groundMaterial, paintMaterial, partyMaterial, skirtingMaterial, wallpaperMaterial } from './materials';
 import { mergeByMaterial } from './merge';
 
 /** cutaway alleen opnieuw bepalen per 22,5°-sector */
 const sector = (az: number) => Math.round(az / (Math.PI / 8));
 
 /** muurlagen + ramen/deuren van een (deel)verdieping als één samengevoegde groep */
-function wallGroup(level: Level, cut: number | null, wallColorAt: WallColorAt): THREE.Group {
+function wallGroup(level: Level, cut: number | null, finishAt: FaceFinishAt): THREE.Group {
   const g = new THREE.Group();
-  const geos = buildWalls(level, () => cut, wallColorAt);
+  const geos = buildWalls(level, () => cut, finishAt);
   const add = (geo: THREE.BufferGeometry | null, mat: THREE.Material) => {
     if (!geo) return;
     const m = new THREE.Mesh(geo, mat);
     m.receiveShadow = true;
+    // om muren te kunnen aantikken (verf/behang)
+    m.userData = { wallLevel: level.id };
     g.add(m);
   };
   add(geos.paint, paintMaterial);
   add(geos.brick, brickMaterial);
   add(geos.party, partyMaterial);
+  for (const p of geos.wallpaper) add(p.geometry, wallpaperMaterial(p.finish));
   // ramen en deuren samengevoegd per materiaal (veel minder tekenopdrachten)
   g.add(mergeByMaterial(buildOpenings(level, () => cut)));
   return g;
@@ -70,18 +73,18 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
   const statics = useMemo(() => {
     const fin: (RoomFinish | null)[] = JSON.parse(finishKey);
     const byRoom = new Map(level.rooms.map((r, i) => [r.id, fin[i]]));
-    const wallColorAt: WallColorAt = (x, z) => {
+    const finishAt: FaceFinishAt = (wall, side, x, z) => {
       const room = level.rooms.find((r) => pointInPolygon([x, z], r.polygon));
-      return room ? (byRoom.get(room.id)?.wallColor ?? null) : null;
+      return room ? faceFinish(byRoom.get(room.id), wall.id, side) : null;
     };
     // binnenmuren: altijd hoog, één keer opbouwen
-    const interior = wallGroup({ ...level, walls: level.walls.filter((w) => !w.outside) }, null, wallColorAt);
+    const interior = wallGroup({ ...level, walls: level.walls.filter((w) => !w.outside) }, null, finishAt);
     // gevels: een hoge én een lage versie; bij draaien wisselen we alleen de zichtbaarheid
     const exterior = level.walls
       .filter((w) => w.outside)
       .map((w) => {
         const one = { ...level, walls: [w] };
-        return { id: w.id, full: wallGroup(one, null, wallColorAt), stub: wallGroup(one, STUB, wallColorAt) };
+        return { id: w.id, full: wallGroup(one, null, finishAt), stub: wallGroup(one, STUB, finishAt) };
       });
     const skirting = buildSkirting(level);
     const floors = buildFloors(level.rooms, level.elevation, index === 0 ? 0 : 0.2, 0.004, 0, (r) => byRoom.get(r.id)?.floor ?? r.floor);

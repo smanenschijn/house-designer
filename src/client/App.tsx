@@ -12,6 +12,7 @@ import { TopBar } from './ui/TopBar';
 import { Consent } from './ui/Consent';
 import { VariantsPanel } from './ui/VariantsPanel';
 import { WalkOverlay } from './ui/WalkOverlay';
+import { WallBar } from './ui/WallBar';
 import { oauthQuery, renderParams } from './renderMode';
 
 const house = waalstraat16;
@@ -94,6 +95,7 @@ export function App() {
       </div>
       <TopBar house={house} />
       <SelectionBar house={house} />
+      <WallBar house={house} />
       {panel === 'library' && <LibraryPanel house={house} />}
       {panel === 'editor' && <ItemEditor />}
       {panel === 'account' && <AccountPanel />}

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import type { House, Room } from '../../shared/house';
 import { polygonArea } from '../../shared/analysis';
-import { DEFAULT_WALL, FLOOR_LABELS, INDOOR_FLOORS, WALL_COLORS, activeVariantFor, defaultVariantId, type Variant } from '../../shared/variants';
+import { FLOOR_LABELS, INDOOR_FLOORS, activeVariantFor, defaultVariantId, roomWallFinish, type Variant } from '../../shared/variants';
+import { WallFinishPicker } from './WallFinishPicker';
 import { api } from '../api';
 import { attempt, useApp } from '../store';
 import { fmtPrice } from './actions';
@@ -39,7 +40,8 @@ function RoomCard({ room, variants }: { room: Room; variants: Variant[] }) {
 
   const finish = current?.finish ?? {};
   const floor = finish.floor ?? room.floor;
-  const wall = finish.wallColor ?? DEFAULT_WALL;
+  const wall = roomWallFinish(finish);
+  const ownFaces = Object.keys(finish.faces ?? {}).length;
   const st = current ? stats.get(current.id) : undefined;
 
   return (
@@ -115,22 +117,26 @@ function RoomCard({ room, variants }: { room: Room; variants: Variant[] }) {
             </select>
           </label>
           <div className="field">
-            <span>Wandkleur</span>
-            <div className="swatches">
-              {WALL_COLORS.map((c) => (
+            <span>Wanden (hele kamer)</span>
+            <WallFinishPicker value={wall} onChange={(w) => run(() => api.updateVariant(current.id, { finish: { wall: w } as never }))} />
+            {ownFaces > 0 && (
+              <div className="row wrap" style={{ alignItems: 'center' }}>
+                <span className="muted small-text">
+                  {ownFaces} {ownFaces === 1 ? 'muur heeft' : 'muren hebben'} een eigen afwerking
+                </span>
                 <button
-                  key={c.hex}
-                  className={`swatch ${wall.toLowerCase() === c.hex ? 'on' : ''}`}
-                  style={{ background: c.hex }}
-                  title={c.name}
-                  aria-label={c.name}
-                  onClick={() => run(() => api.updateVariant(current.id, { finish: { wallColor: c.hex } }))}
-                />
-              ))}
-              <label className="swatch custom" title="Eigen kleur">
-                <input type="color" value={wall} onChange={(e) => run(() => api.updateVariant(current.id, { finish: { wallColor: e.target.value } }))} />
-              </label>
-            </div>
+                  className="small"
+                  onClick={() =>
+                    run(() =>
+                      api.updateVariant(current.id, { finish: { faces: Object.fromEntries(Object.keys(finish.faces ?? {}).map((k) => [k, null])) } as never }),
+                    )
+                  }
+                >
+                  Allemaal zoals de kamer
+                </button>
+              </div>
+            )}
+            <span className="muted small-text">Tip: tik in beeld op een muur om alleen die muur te verven of te behangen.</span>
           </div>
         </>
       )}

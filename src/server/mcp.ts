@@ -20,7 +20,20 @@ import {
 } from './db';
 import { setActor } from './events';
 import { activateVariant, activeMap, createVariant, getVariant, listVariants, updateVariant } from './variants';
-import { FLOOR_LABELS, INDOOR_FLOORS, WALL_COLORS, activeVariantFor, isPlacementVisible } from '../shared/variants';
+import {
+  FLOOR_LABELS,
+  INDOOR_FLOORS,
+  WALLPAPERS,
+  WALL_COLORS,
+  activeVariantFor,
+  describeWallFinish,
+  faceKey,
+  isPlacementVisible,
+  roomWallFinish,
+  type WallFinish,
+  type WallpaperId,
+} from '../shared/variants';
+import { roomFaces } from '../shared/walls';
 import type { FloorMaterial } from '../shared/house';
 
 const visible = () => {
@@ -437,7 +450,8 @@ export function buildMcpServer(user: PublicUser) {
               active: activeVariantFor(act, r.id) === v.id,
               furniture: placements.filter((p) => p.variantId === v.id).length,
               floor: FLOOR_LABELS[v.finish.floor ?? r.floor],
-              wall_color: v.finish.wallColor ?? null,
+              walls: describeWallFinish(roomWallFinish(v.finish)),
+              accent_walls: Object.keys(v.finish.faces ?? {}).length,
             })),
         })),
       );
@@ -483,21 +497,59 @@ export function buildMcpServer(user: PublicUser) {
   server.registerTool(
     'set_room_finish',
     {
-      title: 'Vloer of wandkleur',
-      description: `Past de vloer en/of wandkleur van een kamer aan (in de actieve variant). Vloeren: ${INDOOR_FLOORS.join(', ')}. Wandkleur als #rrggbb; voorbeelden: ${WALL_COLORS.map((c) => `${c.name} ${c.hex}`).join(', ')}.`,
+      title: 'Vloer, verf of behang',
+      description:
+        `Past de afwerking van een kamer aan (in de actieve variant). Vloeren: ${INDOOR_FLOORS.join(', ')}. ` +
+        `Muren: verf (wall_color, #rrggbb; bijv. ${WALL_COLORS.map((c) => `${c.name} ${c.hex}`).join(', ')}) of behang (wallpaper: pattern ${WALLPAPERS.map((p) => p.id).join('/')} met color = achtergrond en accent = motief). ` +
+        'Zonder wall geldt het voor alle wanden van de kamer; met wall (bijv. "oost") alleen voor de muur/muren in die windrichting (accentmuur). Zie get_house voor de muren per kamer. reset_walls haalt alle accentmuren weg.',
       inputSchema: {
         room: z.string(),
         floor: z.enum(INDOOR_FLOORS as [FloorMaterial, ...FloorMaterial[]]).optional(),
         wall_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+        wallpaper: z
+          .object({
+            pattern: z.enum(WALLPAPERS.map((p) => p.id) as [WallpaperId, ...WallpaperId[]]),
+            color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+            accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+          })
+          .optional(),
+        wall: z.enum(['noord', 'noordoost', 'oost', 'zuidoost', 'zuid', 'zuidwest', 'west', 'noordwest']).optional().describe('alleen de muur in deze richting'),
+        reset_walls: z.boolean().optional(),
       },
     },
-    async ({ room, floor, wall_color }) => {
+    async ({ room, floor, wall_color, wallpaper, wall, reset_walls }) => {
       const found = roomOrFail(room);
       if (!found) return fail(`Kamer “${room}” niet gevonden.`);
       const id = activeVariantFor(activeMap(), found.room.id);
+      const cur = getVariant(id)!;
+      let finish: WallFinish | null = null;
+      if (wallpaper) {
+        const def = WALLPAPERS.find((p) => p.id === wallpaper.pattern)!;
+        finish = { kind: 'wallpaper', pattern: wallpaper.pattern, color: wallpaper.color ?? def.color, accent: wallpaper.accent ?? def.accent };
+      } else if (wall_color) finish = { kind: 'paint', color: wall_color };
+      const patch: Record<string, unknown> = {};
+      if (floor) patch.floor = floor;
+      if (reset_walls) patch.faces = Object.fromEntries(Object.keys(cur.finish.faces ?? {}).map((k) => [k, null]));
+      let applied = 'hele kamer';
+      if (finish && wall) {
+        const faces = roomFaces(house, found.level, found.room).filter((f) => f.direction === wall);
+        if (!faces.length) {
+          const dirs = [...new Set(roomFaces(house, found.level, found.room).map((f) => f.direction))].join(', ');
+          return fail(`Geen muur in richting “${wall}” in ${found.room.name}. Wel: ${dirs}.`);
+        }
+        patch.faces = { ...((patch.faces as object) ?? {}), ...Object.fromEntries(faces.map((f) => [faceKey(f.wallId, f.side), finish])) };
+        applied = `muur aan de ${wall}kant (${faces.map((f) => `${f.length} m`).join(' + ')})`;
+      } else if (finish) patch.wall = finish;
       actor(`afwerking ${found.room.name} aangepast`);
-      const v = updateVariant(id, { finish: { ...(floor ? { floor } : {}), ...(wall_color ? { wallColor: wall_color } : {}) } });
-      return json({ room: found.room.name, variant: v.name, floor: FLOOR_LABELS[v.finish.floor ?? found.room.floor], wall_color: v.finish.wallColor });
+      const v = updateVariant(id, { finish: patch });
+      return json({
+        room: found.room.name,
+        variant: v.name,
+        floor: FLOOR_LABELS[v.finish.floor ?? found.room.floor],
+        walls: describeWallFinish(roomWallFinish(v.finish)),
+        accent_walls: Object.keys(v.finish.faces ?? {}).length,
+        applied_to: finish ? applied : undefined,
+      });
     },
   );
 

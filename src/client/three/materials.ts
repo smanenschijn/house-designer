@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MaterialDef } from '../../shared/recipe';
 import type { FloorMaterial } from '../../shared/house';
+import { WALLPAPERS, type WallFinish, type WallpaperId } from '../../shared/variants';
 
 /** Procedurele texturen (canvas), zodat we geen afbeeldingen hoeven te laden. */
 
@@ -369,3 +370,167 @@ export const roofMaterial = (() => {
 export const slabEdgeMaterial = new THREE.MeshStandardMaterial({ color: '#d8d3ca', roughness: 0.9 });
 export const fenceMaterial = new THREE.MeshStandardMaterial({ color: HOUSE_COLORS.fence, roughness: 0.9 });
 export const groundMaterial = new THREE.MeshStandardMaterial({ color: '#86a86a', roughness: 1 });
+
+// ---------- behang ----------
+const wallpaperCache = new Map<string, THREE.MeshStandardMaterial>();
+
+/** tekent iets ook op de 8 gespiegelde posities, zodat het patroon naadloos herhaalt */
+function wrapDraw(S: number, x: number, y: number, draw: (x: number, y: number) => void) {
+  for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) draw(x + dx, y + dy);
+}
+
+function drawWallpaper(ctx: CanvasRenderingContext2D, S: number, pattern: WallpaperId, color: string, accent: string) {
+  const r = rng(pattern.length * 97 + 13);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = accent;
+  ctx.strokeStyle = accent;
+  switch (pattern) {
+    case 'streep': {
+      ctx.fillRect(S * 0.08, 0, S * 0.34, S);
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(S * 0.62, 0, S * 0.03, S);
+      ctx.fillRect(S * 0.7, 0, S * 0.03, S);
+      break;
+    }
+    case 'stip': {
+      for (const [x, y] of [
+        [0.25, 0.25],
+        [0.75, 0.75],
+      ])
+        wrapDraw(S, x * S, y * S, (cx, cy) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, S * 0.07, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      break;
+    }
+    case 'ruit': {
+      ctx.lineWidth = S * 0.018;
+      ctx.beginPath();
+      ctx.moveTo(0, S / 2);
+      ctx.lineTo(S / 2, 0);
+      ctx.lineTo(S, S / 2);
+      ctx.lineTo(S / 2, S);
+      ctx.closePath();
+      ctx.stroke();
+      for (const [x, y] of [
+        [0, 0],
+        [S, 0],
+        [0, S],
+        [S, S],
+        [S / 2, S / 2],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(x, y, S * 0.025, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'botanisch': {
+      for (let i = 0; i < 22; i++) {
+        const x = r() * S;
+        const y = r() * S;
+        const a = r() * Math.PI * 2;
+        const len = S * (0.07 + r() * 0.08);
+        ctx.globalAlpha = 0.55 + r() * 0.45;
+        wrapDraw(S, x, y, (cx, cy) => {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(a);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, len, len * 0.36, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = S * 0.004;
+          ctx.beginPath();
+          ctx.moveTo(-len, 0);
+          ctx.lineTo(len, 0);
+          ctx.stroke();
+          ctx.restore();
+        });
+      }
+      break;
+    }
+    case 'waaier': {
+      ctx.lineWidth = S * 0.012;
+      const R = S / 2;
+      for (const [x, y] of [
+        [0, 0],
+        [S / 2, S / 2],
+        [S, 0],
+        [0, S],
+        [S, S],
+      ])
+        for (let k = 1; k <= 4; k++) {
+          ctx.beginPath();
+          ctx.arc(x, y + R * 0.0, (R * k) / 4.2, Math.PI, Math.PI * 2);
+          ctx.stroke();
+        }
+      break;
+    }
+    case 'linnen': {
+      ctx.globalAlpha = 0.25;
+      for (let y = 0; y < S; y += 3) {
+        ctx.fillRect(0, y + r() * 1.5, S, 1);
+      }
+      for (let x = 0; x < S; x += 3) {
+        ctx.globalAlpha = 0.12 + r() * 0.12;
+        ctx.fillRect(x + r() * 1.5, 0, 1, S);
+      }
+      break;
+    }
+    case 'terrazzo': {
+      const shades = [accent, '#7e8a80', '#d9d2c4', '#a19788'];
+      for (let i = 0; i < 160; i++) {
+        const x = r() * S;
+        const y = r() * S;
+        const sz = S * (0.006 + r() * 0.03);
+        ctx.fillStyle = shades[Math.floor(r() * shades.length)];
+        ctx.globalAlpha = 0.85;
+        const pts = 5 + Math.floor(r() * 3);
+        const rot = r() * Math.PI;
+        const radii = Array.from({ length: pts }, () => sz * (0.6 + r() * 0.5));
+        wrapDraw(S, x, y, (cx, cy) => {
+          ctx.beginPath();
+          for (let k = 0; k < pts; k++) {
+            const ang = rot + (k / pts) * Math.PI * 2;
+            const rr = radii[k];
+            const px = cx + Math.cos(ang) * rr;
+            const py = cy + Math.sin(ang) * rr;
+            if (k === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        });
+      }
+      break;
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** materiaal voor behang (uv's in meters, patroon op ware grootte) */
+export function wallpaperMaterial(w: Extract<WallFinish, { kind: 'wallpaper' }>): THREE.MeshStandardMaterial {
+  const key = `${w.pattern}|${w.color}|${w.accent}`;
+  const hit = wallpaperCache.get(key);
+  if (hit) return hit;
+  const def = WALLPAPERS.find((p) => p.id === w.pattern)!;
+  const tex = canvasTexture(`behang-${key}`, 512, (ctx, S) => drawWallpaper(ctx, S, w.pattern, w.color, w.accent));
+  const map = tex.clone();
+  map.needsUpdate = true;
+  map.repeat.set(1 / def.tile[0], 1 / def.tile[1]);
+  const m = new THREE.MeshStandardMaterial({ map, roughness: w.pattern === 'linnen' ? 0.98 : 0.85, side: THREE.DoubleSide });
+  wallpaperCache.set(key, m);
+  return m;
+}
+
+/** kleine voorvertoning (data-URL) van een behangpatroon voor de interface */
+export function wallpaperSwatch(pattern: WallpaperId, color: string, accent: string): string {
+  const c = document.createElement('canvas');
+  c.width = c.height = 96;
+  drawWallpaper(c.getContext('2d')!, 96, pattern, color, accent);
+  return c.toDataURL();
+}

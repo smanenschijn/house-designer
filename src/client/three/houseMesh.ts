@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Fence, FlatRoof, GableRoof, House, Level, Opening, Room, V2, Wall } from '../../shared/house';
 import { buildRecipe } from './recipeMesh';
-import { DEFAULT_WALL } from '../../shared/variants';
+import { DEFAULT_WALL, wallFinishKey, type WallFinish } from '../../shared/variants';
 import {
   HOUSE_COLORS,
   doorMaterial,
@@ -137,25 +137,35 @@ function mergeOrNull(list: THREE.BufferGeometry[]): THREE.BufferGeometry | null 
   return m;
 }
 
-/** kleur van het stucwerk op punt (x, z) binnen een kamer, of null voor standaard */
-export type WallColorAt = (x: number, z: number) => string | null;
+/** afwerking (verf/behang) van één kant van een muur op punt (x, z), of null (buiten een kamer) */
+export type FaceFinishAt = (wall: Wall, side: 1 | -1, x: number, z: number) => WallFinish | null;
 
-/** muurgeometrie per laag (stuc / baksteen / buurmuur), uv's in meters */
-export function buildWalls(level: Level, cutFor: (w: Wall) => number | null, wallColorAt?: WallColorAt): Record<WallLayer, THREE.BufferGeometry | null> {
+export interface WallGeometry {
+  paint: THREE.BufferGeometry | null;
+  brick: THREE.BufferGeometry | null;
+  party: THREE.BufferGeometry | null;
+  /** behangbanen: dunne vlakken voor de muur, per behangsoort samengevoegd */
+  wallpaper: { finish: Extract<WallFinish, { kind: 'wallpaper' }>; geometry: THREE.BufferGeometry }[];
+}
+
+/** muurgeometrie per laag (stuc / baksteen / buurmuur) plus behang, uv's in meters */
+export function buildWalls(level: Level, cutFor: (w: Wall) => number | null, finishAt?: FaceFinishAt): WallGeometry {
   const lists: Record<WallLayer, THREE.BufferGeometry[]> = { paint: [], brick: [], party: [] };
+  const papers = new Map<string, { finish: Extract<WallFinish, { kind: 'wallpaper' }>; geoms: THREE.BufferGeometry[] }>();
   for (const w of level.walls) {
     const cut = cutFor(w);
     const f = wallFrame(w);
     const t = w.thickness;
-    // muur opknippen waar de kamer (kleur) aan een van beide kanten verandert
+    // muur opknippen waar de afwerking aan een van beide kanten verandert (kamergrens)
     const colorBreaks: number[] = [];
-    if (wallColorAt) {
+    const keyOf = (fin: WallFinish | null) => (fin ? wallFinishKey(fin) : '-');
+    if (finishAt) {
       const off = t / 2 + 0.15;
       let prev: string | null = null;
       for (let u = 0.05; u < f.len; u += 0.1) {
         const px = f.a.x + f.dir.x * u;
         const pz = f.a.y + f.dir.y * u;
-        const key = `${wallColorAt(px + f.n.x * off, pz + f.n.y * off)}|${wallColorAt(px - f.n.x * off, pz - f.n.y * off)}`;
+        const key = `${keyOf(finishAt(w, 1, px + f.n.x * off, pz + f.n.y * off))}|${keyOf(finishAt(w, -1, px - f.n.x * off, pz - f.n.y * off))}`;
         if (prev !== null && key !== prev) colorBreaks.push(u - 0.05);
         prev = key;
       }
@@ -181,19 +191,41 @@ export function buildWalls(level: Level, cutFor: (w: Wall) => number | null, wal
         const g = extrudePoly(poly, s1 - s0);
         g.applyMatrix4(m);
         if (layer === 'paint') {
-          // kleur per kant: welke kamer ligt aan deze kant van dit stuk muur?
+          // afwerking per kant: welke kamer (en welk muurvlak) ligt aan deze kant van dit stuk muur?
           const uc = (poly[0][0] + poly[1][0]) / 2;
           const px = f.a.x + f.dir.x * uc;
           const pz = f.a.y + f.dir.y * uc;
           const off = t / 2 + 0.15;
-          const pick = (sgn: number) => paintColor(wallColorAt?.(px + f.n.x * off * sgn, pz + f.n.y * off * sgn) ?? null);
-          colorize(g, HOUSE_COLORS.white, cap, { n: f.n, plus: pick(1), minus: pick(-1) });
+          const fin = (sgn: 1 | -1) => finishAt?.(w, sgn, px + f.n.x * off * sgn, pz + f.n.y * off * sgn) ?? null;
+          const plus = fin(1);
+          const minus = fin(-1);
+          const tint = (x: WallFinish | null) => paintColor(x ? x.color : null);
+          colorize(g, HOUSE_COLORS.white, cap, { n: f.n, plus: tint(plus), minus: tint(minus) });
+          // behang: dun vlak net voor de muur (alleen aan de kant van de kamer)
+          for (const [sgn, x] of [
+            [1, plus],
+            [-1, minus],
+          ] as const) {
+            if (!x || x.kind !== 'wallpaper') continue;
+            const face = sgn > 0 ? s1 : s0;
+            const pg = new THREE.ShapeGeometry(new THREE.Shape(poly.map(([uu, yy]) => new THREE.Vector2(uu, yy))));
+            pg.applyMatrix4(wallMatrix(f, level.elevation, face + sgn * 0.0015));
+            const key = wallFinishKey(x);
+            const b = papers.get(key) ?? { finish: x, geoms: [] };
+            b.geoms.push(pg);
+            papers.set(key, b);
+          }
         } else colorize(g, HOUSE_COLORS.white, cap);
         lists[layer].push(g);
       }
     }
   }
-  return { paint: mergeOrNull(lists.paint), brick: mergeOrNull(lists.brick), party: mergeOrNull(lists.party) };
+  return {
+    paint: mergeOrNull(lists.paint),
+    brick: mergeOrNull(lists.brick),
+    party: mergeOrNull(lists.party),
+    wallpaper: [...papers.values()].map((b) => ({ finish: b.finish, geometry: mergeOrNull(b.geoms)! })),
+  };
 }
 
 /** plinten langs alle binnenzijdes van muren (onderbroken bij deuren) */
@@ -524,7 +556,7 @@ export function buildShadowProxy(house: House): THREE.Group {
   };
   house.levels.forEach((level, i) => {
     const walls = buildWalls(level, () => null);
-    for (const geo of Object.values(walls)) if (geo) add(new THREE.Mesh(geo));
+    for (const geo of [walls.paint, walls.brick, walls.party]) if (geo) add(new THREE.Mesh(geo));
     if (i > 0) add(buildFloors(level.rooms, level.elevation, 0.2));
   });
   add(buildRoofs(house.roofs, shadowOnlyMaterial, true));

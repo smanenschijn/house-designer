@@ -21,6 +21,8 @@ interface AppState {
   level: LevelView;
   wallMode: WallMode;
   selectedId: string | null;
+  /** geselecteerd muurvlak (verf/behang) */
+  selectedWall: { levelId: string; wallId: string; side: 1 | -1; roomId: string } | null;
   /** id van de plaatsing die nu gesleept wordt (niet overschrijven door verversen) */
   dragging: string | null;
   panel: 'library' | 'editor' | 'account' | 'variants' | null;
@@ -48,6 +50,7 @@ interface AppState {
   setLevel: (l: LevelView) => void;
   setWallMode: (m: WallMode) => void;
   select: (id: string | null) => void;
+  selectWall: (w: AppState['selectedWall']) => void;
   setPanel: (p: AppState['panel'], editingItemId?: string | null) => void;
   setAzimuth: (a: number) => void;
   requestRotate: (dir: 1 | -1) => void;
@@ -101,6 +104,7 @@ export const useApp = create<AppState>((set, get) => ({
   level: renderParams?.level ?? 0,
   wallMode: 'cutaway',
   selectedId: null,
+  selectedWall: null,
   dragging: null,
   panel: null,
   editingItemId: null,
@@ -143,9 +147,10 @@ export const useApp = create<AppState>((set, get) => ({
       });
     }
   },
-  setLevel: (level) => set({ level, selectedId: null }),
+  setLevel: (level) => set({ level, selectedId: null, selectedWall: null }),
   setWallMode: (wallMode) => set({ wallMode }),
-  select: (selectedId) => set({ selectedId }),
+  select: (selectedId) => set(selectedId ? { selectedId, selectedWall: null } : { selectedId }),
+  selectWall: (selectedWall) => set(selectedWall ? { selectedWall, selectedId: null } : { selectedWall }),
   setPanel: (panel, editingItemId = null) => set({ panel, editingItemId }),
   setAzimuth: (azimuth) => set({ azimuth }),
   requestRotate: (dir) => set((s) => ({ rotateRequest: s.rotateRequest + dir })),

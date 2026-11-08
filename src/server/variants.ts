@@ -8,8 +8,11 @@ import {
   defaultVariantId,
   roomAtPoint,
   type ActiveMap,
+  WALLPAPERS,
   type RoomFinish,
   type Variant,
+  type WallFinish,
+  type WallpaperId,
 } from '../shared/variants';
 import { FLOOR_LABELS } from '../shared/variants';
 import { bumpVersion, db, setVariantResolver } from './db';
@@ -86,10 +89,47 @@ function assertRoom(roomId: string) {
   if (!allRooms(houseRef).some(({ room }) => room.id === roomId)) throw new VariantError(`Onbekende kamer: ${roomId}`);
 }
 
-function sanitizeFinish(f: RoomFinish | undefined): RoomFinish {
-  const out: RoomFinish = {};
-  if (f?.floor && f.floor in FLOOR_LABELS) out.floor = f.floor;
-  if (f?.wallColor && /^#[0-9a-fA-F]{6}$/.test(f.wallColor)) out.wallColor = f.wallColor.toLowerCase();
+const HEX = /^#[0-9a-fA-F]{6}$/;
+function sanitizeWall(w: unknown): WallFinish | null {
+  if (!w || typeof w !== 'object') return null;
+  const o = w as Record<string, unknown>;
+  if (o.kind === 'paint' && typeof o.color === 'string' && HEX.test(o.color)) return { kind: 'paint', color: o.color.toLowerCase() };
+  if (o.kind === 'wallpaper' && WALLPAPERS.some((p) => p.id === o.pattern) && typeof o.color === 'string' && HEX.test(o.color) && typeof o.accent === 'string' && HEX.test(o.accent))
+    return { kind: 'wallpaper', pattern: o.pattern as WallpaperId, color: o.color.toLowerCase(), accent: o.accent.toLowerCase() };
+  return null;
+}
+
+/**
+ * Past een gedeeltelijke afwerking toe op de bestaande. `faces` wordt samengevoegd;
+ * een waarde null verwijdert de afwijking van dat muurvlak.
+ */
+function mergeFinish(cur: RoomFinish, patch: Partial<Record<keyof RoomFinish, unknown>> | undefined): RoomFinish {
+  const out: RoomFinish = { ...cur };
+  if (!patch) return out;
+  if (typeof patch.floor === 'string' && patch.floor in FLOOR_LABELS) out.floor = patch.floor as RoomFinish['floor'];
+  if (typeof patch.wallColor === 'string' && HEX.test(patch.wallColor)) {
+    out.wallColor = patch.wallColor.toLowerCase();
+    out.wall = { kind: 'paint', color: out.wallColor };
+  }
+  if (patch.wall !== undefined) {
+    const w = sanitizeWall(patch.wall);
+    if (w) {
+      out.wall = w;
+      if (w.kind === 'paint') out.wallColor = w.color;
+    }
+  }
+  if (patch.faces && typeof patch.faces === 'object') {
+    const faces = { ...(cur.faces ?? {}) };
+    for (const [k, v] of Object.entries(patch.faces as Record<string, unknown>).slice(0, 200)) {
+      if (!/^[\w-]+:[+-]$/.test(k)) continue;
+      if (v === null) delete faces[k];
+      else {
+        const w = sanitizeWall(v);
+        if (w) faces[k] = w;
+      }
+    }
+    out.faces = faces;
+  }
   return out;
 }
 
@@ -114,10 +154,10 @@ export function createVariant(input: { roomId: string; name: string; copyFrom?: 
   return getVariant(id)!;
 }
 
-export function updateVariant(id: string, patch: { name?: string; finish?: RoomFinish }): Variant {
+export function updateVariant(id: string, patch: { name?: string; finish?: Partial<Record<keyof RoomFinish, unknown>> }): Variant {
   const v = getVariant(id);
   if (!v) throw new VariantError('Variant niet gevonden');
-  const finish = patch.finish ? { ...v.finish, ...sanitizeFinish(patch.finish) } : v.finish;
+  const finish = mergeFinish(v.finish, patch.finish as Partial<Record<keyof RoomFinish, unknown>> | undefined);
   db.prepare(`UPDATE variants SET name = ?, finish = ? WHERE id = ?`).run(patch.name?.trim().slice(0, 60) || v.name, JSON.stringify(finish), id);
   bumpVersion();
   return getVariant(id)!;

@@ -28,7 +28,8 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 ## Indelingen en rondlopen (fase 3)
 
 - **Indelingen** (knop met de lagen rechtsboven): per kamer meerdere varianten, bijv. *Standaard* en *Bank bij het raam*. Kopiëren, leeg beginnen, hernoemen, verwijderen en met één tik wisselen. Meubels die je plaatst of verschuift horen bij de actieve variant van de kamer waar ze staan.
-- **Afwerking per variant**: vloer (visgraat, laminaat, tegels, beton) en wandkleur (palet of eigen kleur). Binnenmuren krijgen aan elke kant de kleur van de kamer aan die kant.
+- **Afwerking per variant**: vloer (visgraat, laminaat, tegels, beton) en wanden: **verf** (palet of eigen kleur) of **behang** (streep, stip, ruit, botanisch, art-deco waaier, linnen, terrazzo — met eigen achtergrond- en motiefkleur, op ware grootte). Binnenmuren krijgen aan elke kant de afwerking van de kamer aan die kant.
+- **Accentmuur**: tik in de bewerkmodus op een muur; in de muurbalk kies je verf of behang voor alleen die muur, *Hele kamer zo* of *Zoals de kamer*.
 - **Prijs per variant**: wat er in die variant nog gekocht moet worden.
 - **Rondlopen** (wandelaar-icoon): op ooghoogte door het huis. Laptop: klik in beeld, WASD/pijltjes, Shift = rennen, Esc = muis los. Telefoon/iPad: joystick linksonder, vegen = rondkijken. Je loopt niet door muren, vaste inbouw of meubels; wel door deuren (ook naar buiten). Wissel van verdieping met de knoppen bovenin.
 
@@ -50,7 +51,7 @@ Wat Claude kan (MCP-tools):
 | `place_furniture`, `move_furniture`, `remove_furniture`, `list_placed_furniture` | inrichten, met muursnap en botsingsmelding |
 | `render_view` | afbeelding van een kamer/verdieping (iso of perspectief, met zonnestand) |
 | `list_room_variants`, `create_room_variant`, `activate_room_variant` | varianten per kamer bekijken, maken (kopie) en wisselen |
-| `set_room_finish` | vloer en wandkleur van een kamer (actieve variant) |
+| `set_room_finish` | vloer, verf of behang van een kamer, of van één muur per windrichting (accentmuur) |
 
 Alle wijzigingen verschijnen direct in de app bij iedereen die hem open heeft (Server-Sent Events), met een melding wie wat deed. Koppelingen intrekken kan onder *Account → Claude koppelen*.
 

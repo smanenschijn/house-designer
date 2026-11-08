@@ -234,7 +234,7 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   gap: 16px;
   align-items: center;
   max-width: calc(100vw - 24px);
-  z-index: 4;
+  z-index: 20;
 }
 .app.with-panel .selbar { left: calc((100vw - var(--panel-w) - 24px) / 2); }
 .sel-info { display: grid; min-width: 0; font-size: 12px; gap: 1px; }
@@ -333,6 +333,25 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .swatch.custom { position: relative; overflow: hidden; background: conic-gradient(#e57373, #ffd54f, #81c784, #64b5f6, #ba68c8, #e57373); cursor: pointer; }
 .swatch.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
+/* ---------- muren: verf en behang ---------- */
+.wallbar {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: max(36px, calc(env(safe-area-inset-bottom) + 26px));
+  width: min(460px, calc(100vw - 24px)); border-radius: 18px; padding: 12px 14px; display: grid; gap: 10px; z-index: 20;
+  animation: panel-in 0.2s ease-out;
+}
+.app.with-panel .wallbar { left: calc((100vw - var(--panel-w) - 24px) / 2); }
+.wallbar-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.wallbar-head > div { display: grid; gap: 2px; min-width: 0; }
+.wallbar-head strong { font-family: var(--serif); font-size: 19px; font-weight: 600; }
+.wfp { display: grid; gap: 10px; }
+.small-seg button { padding: 5px 10px !important; font-size: 12.5px; }
+.papers { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px; }
+.paper { display: grid !important; gap: 4px; padding: 4px !important; border-radius: 10px !important; font-size: 10.5px; color: var(--muted); }
+.paper img { width: 100%; aspect-ratio: 1; border-radius: 7px; display: block; }
+.paper.on { border-color: var(--sage) !important; color: var(--mint); box-shadow: 0 0 0 1px var(--sage); }
+.paper span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- rondlopen ---------- */
 .walk-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(22px, env(safe-area-inset-bottom)); padding: 8px 8px 8px 16px; border-radius: 999px; font-size: 12.5px; color: var(--mint); display: flex; gap: 12px; align-items: center; z-index: 6; white-space: nowrap; }
 .joystick { position: absolute; left: 26px; bottom: 86px; width: 130px; height: 130px; border-radius: 50%; display: grid; place-items: center; touch-action: none; z-index: 6; }
@@ -380,7 +399,8 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   .sun-pop { left: auto; right: -70px; transform: none; }
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: 68vh; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: sheet-in 0.25s ease-out; }
   @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
-  .app.with-panel .selbar { display: none; }
+  .app.with-panel .selbar, .app.with-panel .wallbar { display: none; }
+  .wallbar { bottom: max(20px, env(safe-area-inset-bottom)); }
   .selbar { flex-direction: column; align-items: stretch; gap: 8px; width: calc(100vw - 16px); bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px)); padding: 12px; }
   .sel-actions { justify-content: space-between; }
   .sel-actions button { flex: 1; }
