@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { House } from '../../shared/house';
 import { CATEGORIES, STATUSES, STATUS_LABELS, type Item, type ItemStatus } from '../../shared/recipe';
 import { api } from '../api';
-import { attempt, useApp } from '../store';
+import { attempt, useApp, visiblePlacements } from '../store';
 import { recipeThumbnail } from '../three/thumbnail';
 import { fmtPrice, fmtSize, placeItem } from './actions';
 import { Icon } from './Icon';
@@ -42,7 +42,7 @@ export function LibraryPanel({ house }: { house: House }) {
 
   const placedTotal = useMemo(() => {
     let sum = 0;
-    for (const p of placements) {
+    for (const p of visiblePlacements(useApp.getState())) {
       const it = items.find((i) => i.id === p.itemId);
       if (it && it.meta.status !== 'hebben' && it.meta.price) sum += it.meta.price;
     }

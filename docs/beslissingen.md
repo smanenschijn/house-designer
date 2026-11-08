@@ -86,7 +86,7 @@ Verhuizing binnen 2 maanden (vanaf 2026-11-08, dus vóór begin januari 2027). Z
 - Remote MCP-server (OAuth) met tools: meubel uit recept toevoegen/aanpassen, bibliotheek doorzoeken, plaatsen, schermafbeelding van een ruimte.
 - Live synchronisatie tussen apparaten (WebSocket).
 
-**Fase 3 – Comfort**
+**Fase 3 – Comfort** ✅ (2026-11-08)
 - Rondloopmodus (desktop + touch), varianten per ruimte, wandkleur/vloer, totaalprijs, status/filters.
 
 **Later**

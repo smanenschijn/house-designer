@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Fence, FlatRoof, GableRoof, House, Level, Opening, Room, V2, Wall } from '../../shared/house';
 import { buildRecipe } from './recipeMesh';
+import { DEFAULT_WALL } from '../../shared/variants';
 import {
   HOUSE_COLORS,
   doorMaterial,
@@ -51,7 +52,7 @@ const outSignOf = (w: Wall, f: WallFrame) => (w.outside ? (f.n.x * w.outside[0] 
 export const STUB = 0.35;
 
 /** stukken muur als polygonen in het (u, y)-vlak */
-function wallPieces(w: Wall, level: Level, cut: number | null): V2[][] {
+function wallPieces(w: Wall, level: Level, cut: number | null, extraBreaks: number[] = []): V2[][] {
   const f = wallFrame(w);
   const L = f.len;
   const top = (u: number) => {
@@ -65,6 +66,7 @@ function wallPieces(w: Wall, level: Level, cut: number | null): V2[][] {
     breaks.add(o.u1);
   }
   if (w.topByZ) for (let u = 0; u < L; u += 0.1) breaks.add(u);
+  for (const u of extraBreaks) if (u > 0 && u < L) breaks.add(u);
   const us = [...breaks].sort((x, y) => x - y);
   const polys: V2[][] = [];
   const quad = (u0: number, u1: number, yb: number, t0: number, t1: number) => {
@@ -101,16 +103,31 @@ function extrudePoly(poly: V2[], depth: number): THREE.BufferGeometry {
   return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 1 });
 }
 
-function colorize(g: THREE.BufferGeometry, side: THREE.Color, cap: THREE.Color) {
+function colorize(g: THREE.BufferGeometry, side: THREE.Color, cap: THREE.Color, sides?: { n: THREE.Vector2; plus: THREE.Color; minus: THREE.Color }) {
   const normal = g.getAttribute('normal');
   const colors = new Float32Array(normal.count * 3);
   for (let i = 0; i < normal.count; i++) {
-    const c = normal.getY(i) > 0.7 ? cap : side;
+    let c = normal.getY(i) > 0.7 ? cap : side;
+    if (sides && c === side) {
+      const d = normal.getX(i) * sides.n.x + normal.getZ(i) * sides.n.y;
+      c = d < -0.5 ? sides.minus : sides.plus;
+    }
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
+const paintCache = new Map<string, THREE.Color>();
+function paintColor(hex: string | null) {
+  const key = hex ?? DEFAULT_WALL;
+  let c = paintCache.get(key);
+  if (!c) {
+    c = new THREE.Color(key);
+    paintCache.set(key, c);
+  }
+  return c;
 }
 
 function mergeOrNull(list: THREE.BufferGeometry[]): THREE.BufferGeometry | null {
@@ -120,14 +137,30 @@ function mergeOrNull(list: THREE.BufferGeometry[]): THREE.BufferGeometry | null 
   return m;
 }
 
+/** kleur van het stucwerk op punt (x, z) binnen een kamer, of null voor standaard */
+export type WallColorAt = (x: number, z: number) => string | null;
+
 /** muurgeometrie per laag (stuc / baksteen / buurmuur), uv's in meters */
-export function buildWalls(level: Level, cutFor: (w: Wall) => number | null): Record<WallLayer, THREE.BufferGeometry | null> {
+export function buildWalls(level: Level, cutFor: (w: Wall) => number | null, wallColorAt?: WallColorAt): Record<WallLayer, THREE.BufferGeometry | null> {
   const lists: Record<WallLayer, THREE.BufferGeometry[]> = { paint: [], brick: [], party: [] };
   for (const w of level.walls) {
     const cut = cutFor(w);
-    const polys = wallPieces(w, level, cut);
     const f = wallFrame(w);
     const t = w.thickness;
+    // muur opknippen waar de kamer (kleur) aan een van beide kanten verandert
+    const colorBreaks: number[] = [];
+    if (wallColorAt) {
+      const off = t / 2 + 0.15;
+      let prev: string | null = null;
+      for (let u = 0.05; u < f.len; u += 0.1) {
+        const px = f.a.x + f.dir.x * u;
+        const pz = f.a.y + f.dir.y * u;
+        const key = `${wallColorAt(px + f.n.x * off, pz + f.n.y * off)}|${wallColorAt(px - f.n.x * off, pz - f.n.y * off)}`;
+        if (prev !== null && key !== prev) colorBreaks.push(u - 0.05);
+        prev = key;
+      }
+    }
+    const polys = wallPieces(w, level, cut, colorBreaks);
     const cap = cut === null ? HOUSE_COLORS.capLight : HOUSE_COLORS.cap;
     const layers: [number, number, WallLayer][] = [];
     if (w.outside) {
@@ -147,7 +180,15 @@ export function buildWalls(level: Level, cutFor: (w: Wall) => number | null): Re
       for (const poly of polys) {
         const g = extrudePoly(poly, s1 - s0);
         g.applyMatrix4(m);
-        colorize(g, HOUSE_COLORS.white, cap);
+        if (layer === 'paint') {
+          // kleur per kant: welke kamer ligt aan deze kant van dit stuk muur?
+          const uc = (poly[0][0] + poly[1][0]) / 2;
+          const px = f.a.x + f.dir.x * uc;
+          const pz = f.a.y + f.dir.y * uc;
+          const off = t / 2 + 0.15;
+          const pick = (sgn: number) => paintColor(wallColorAt?.(px + f.n.x * off * sgn, pz + f.n.y * off * sgn) ?? null);
+          colorize(g, HOUSE_COLORS.white, cap, { n: f.n, plus: pick(1), minus: pick(-1) });
+        } else colorize(g, HOUSE_COLORS.white, cap);
         lists[layer].push(g);
       }
     }
@@ -298,9 +339,10 @@ function shapeFromPolygon(poly: V2[]): THREE.Shape {
   return new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
 }
 
-export function buildFloors(rooms: Room[], elevation: number, slab: number, yOffset = 0.004, stack = 0): THREE.Group {
+export function buildFloors(rooms: Room[], elevation: number, slab: number, yOffset = 0.004, stack = 0, floorFor?: (r: Room) => Room['floor']): THREE.Group {
   const group = new THREE.Group();
-  for (const [i, r] of rooms.entries()) {
+  for (const [i, room] of rooms.entries()) {
+    const r = floorFor ? { ...room, floor: floorFor(room) } : room;
     const shape = shapeFromPolygon(r.polygon);
     let mesh: THREE.Mesh;
     if (slab > 0) {
@@ -319,6 +361,37 @@ export function buildFloors(rooms: Room[], elevation: number, slab: number, yOff
     group.add(mesh);
   }
   return group;
+}
+
+// ---------- plafonds (rondloopmodus) ----------
+const ceilingMaterial = new THREE.MeshStandardMaterial({ color: '#f4f3f0', roughness: 0.95, side: THREE.BackSide });
+const atticMaterial = new THREE.MeshStandardMaterial({ color: '#efede8', roughness: 0.95, side: THREE.DoubleSide });
+
+export function buildCeilings(house: House, index: number): THREE.Group {
+  const level = house.levels[index];
+  const g = new THREE.Group();
+  if (index === house.levels.length - 1) {
+    // zolder: binnenkant van het dak
+    const roofs = buildRoofs(house.roofs.filter((r) => r.kind === 'gable'), atticMaterial);
+    roofs.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) {
+        m.castShadow = false;
+        m.receiveShadow = true;
+      }
+    });
+    g.add(roofs);
+    return g;
+  }
+  for (const r of level.rooms) {
+    const geo = new THREE.ShapeGeometry(shapeFromPolygon(r.polygon));
+    const m = new THREE.Mesh(geo, ceilingMaterial);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = level.elevation + level.ceilingHeight;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+  return g;
 }
 
 // ---------- vaste inbouw ----------

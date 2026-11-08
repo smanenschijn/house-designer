@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Item, Placement } from '../shared/recipe';
+import { isPlacementVisible, type ActiveMap, type Variant } from '../shared/variants';
 import { api, type User } from './api';
 import type { WallMode } from './three/houseMesh';
 import { renderParams } from './renderMode';
@@ -11,6 +12,8 @@ interface AppState {
   users: User[];
   items: Item[];
   placements: Placement[];
+  variants: Variant[];
+  active: ActiveMap;
   version: number;
   loaded: boolean;
   error: string | null;
@@ -20,7 +23,7 @@ interface AppState {
   selectedId: string | null;
   /** id van de plaatsing die nu gesleept wordt (niet overschrijven door verversen) */
   dragging: string | null;
-  panel: 'library' | 'editor' | 'account' | null;
+  panel: 'library' | 'editor' | 'account' | 'variants' | null;
   editingItemId: string | null;
   /** azimut van de camera in radialen (voor cutaway en kompas) */
   azimuth: number;
@@ -28,7 +31,7 @@ interface AppState {
   focusRequest: number;
   snap: boolean;
   /** iso = isometrisch (orthografisch), persp = perspectief */
-  camMode: 'iso' | 'persp';
+  camMode: 'iso' | 'persp' | 'walk';
   showLabels: boolean;
   /** false = kijkmodus: meubels zijn vastgezet */
   editMode: boolean;
@@ -49,9 +52,10 @@ interface AppState {
   setAzimuth: (a: number) => void;
   requestRotate: (dir: 1 | -1) => void;
   requestFocus: () => void;
+  focusOn: (roomId: string | null) => void;
   setSnap: (s: boolean) => void;
   setDragging: (id: string | null) => void;
-  setCamMode: (m: 'iso' | 'persp') => void;
+  setCamMode: (m: 'iso' | 'persp' | 'walk') => void;
   setShowLabels: (v: boolean) => void;
   setEditMode: (v: boolean) => void;
   setOnline: (o: { id: string; name: string }[]) => void;
@@ -88,6 +92,8 @@ export const useApp = create<AppState>((set, get) => ({
   users: [],
   items: [],
   placements: [],
+  variants: [],
+  active: {},
   version: 0,
   loaded: false,
   error: null,
@@ -117,7 +123,7 @@ export const useApp = create<AppState>((set, get) => ({
   setUser: (user) => set({ user }),
   load: async () => {
     const s = await api.state();
-    set({ items: s.items, placements: s.placements, users: s.users, version: s.version, loaded: true });
+    set({ items: s.items, placements: s.placements, users: s.users, variants: s.variants, active: s.active, version: s.version, loaded: true });
   },
   poll: async () => {
     if (get().dragging) return;
@@ -130,6 +136,8 @@ export const useApp = create<AppState>((set, get) => ({
         items: s.items,
         placements: s.placements,
         users: s.users,
+        variants: s.variants,
+        active: s.active,
         version: s.version,
         selectedId: sel && s.placements.some((p) => p.id === sel) ? sel : null,
       });
@@ -141,10 +149,11 @@ export const useApp = create<AppState>((set, get) => ({
   setPanel: (panel, editingItemId = null) => set({ panel, editingItemId }),
   setAzimuth: (azimuth) => set({ azimuth }),
   requestRotate: (dir) => set((s) => ({ rotateRequest: s.rotateRequest + dir })),
-  requestFocus: () => set((s) => ({ focusRequest: s.focusRequest + 1 })),
+  requestFocus: () => set((s) => ({ focusRoom: null, focusRequest: s.focusRequest + 1 })),
+  focusOn: (roomId) => set((s) => ({ focusRoom: roomId, focusRequest: s.focusRequest + 1 })),
   setSnap: (snap) => set({ snap }),
   setDragging: (dragging) => set({ dragging }),
-  setCamMode: (camMode) => set({ camMode }),
+  setCamMode: (camMode) => set(camMode === 'walk' ? { camMode, selectedId: null, level: useApp.getState().level === 'all' ? 0 : useApp.getState().level } : { camMode }),
   setOnline: (online) => set({ online }),
   setNotice: (notice) => set({ notice }),
   setEditMode: (editMode) => {
@@ -168,6 +177,11 @@ export const useApp = create<AppState>((set, get) => ({
 }));
 
 /** Voer een API-actie uit; toon fout zonder de app te breken. */
+/** zichtbare plaatsingen (actieve varianten) */
+export function visiblePlacements(st: Pick<AppState, 'placements' | 'variants' | 'active'>) {
+  return st.placements.filter((p) => isPlacementVisible(p.variantId, st.variants, st.active));
+}
+
 export async function attempt<T>(fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();

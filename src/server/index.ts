@@ -10,6 +10,8 @@ import { accountRoutes, authRoutes, requireUser, userRoutes, type AuthEnv } from
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { bearerUser, initOAuth, oauthApp, oauthPublic, wwwAuthenticate } from './oauth';
 import { buildMcpServer } from './mcp';
+import { VariantError, activateVariant, activeMap, createVariant, deleteVariant, initVariants, listVariants, updateVariant } from './variants';
+import { waalstraat16 } from '../shared/waalstraat16';
 import {
   createItem,
   createPlacement,
@@ -28,6 +30,7 @@ const PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 8787);
 
 initAuth();
 initOAuth();
+initVariants(waalstraat16);
 ensureFirstUser();
 seedLibrary();
 
@@ -35,6 +38,7 @@ const app = new Hono<AuthEnv>();
 
 app.onError((err, c) => {
   if (err instanceof AuthError) return c.json({ error: err.message }, err.status);
+  if (err instanceof VariantError) return c.json({ error: err.message }, 400);
   if (err instanceof ZodError) return c.json({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
   console.error(err);
   return c.json({ error: err.message || 'Serverfout' }, 500);
@@ -101,7 +105,9 @@ app.get('/api/events', (c) => {
   });
 });
 app.get('/api/version', (c) => c.json({ version: getVersion() }));
-app.get('/api/state', (c) => c.json({ items: listItems(), placements: listPlacements(), users: listUsers(), version: getVersion() }));
+app.get('/api/state', (c) =>
+  c.json({ items: listItems(), placements: listPlacements(), users: listUsers(), variants: listVariants(), active: activeMap(), version: getVersion() }),
+);
 
 app.get('/api/items', (c) => c.json(listItems()));
 // wie doet de wijziging (voor meldingen bij de ander)
@@ -116,6 +122,22 @@ app.put('/api/items/:id', async (c) => {
   return it ? c.json(it) : c.json({ error: 'Niet gevonden' }, 404);
 });
 app.delete('/api/items/:id', (c) => (deleteItem(c.req.param('id')) ? c.body(null, 204) : c.json({ error: 'Niet gevonden' }, 404)));
+
+// varianten per kamer
+app.post('/api/variants', async (c) => {
+  const b = await c.req.json();
+  setActor(c.get('user').displayName, `nieuwe variant “${b.name}”`);
+  return c.json(createVariant({ roomId: String(b.roomId), name: String(b.name ?? ''), copyFrom: b.copyFrom, activate: b.activate }, c.get('user').id), 201);
+});
+app.put('/api/variants/:id', async (c) => c.json(updateVariant(c.req.param('id'), await c.req.json())));
+app.post('/api/variants/:id/activate', (c) => {
+  const v = activateVariant(c.req.param('id'));
+  return c.json(v);
+});
+app.delete('/api/variants/:id', (c) => {
+  deleteVariant(c.req.param('id'));
+  return c.body(null, 204);
+});
 
 app.get('/api/placements', (c) => c.json(listPlacements()));
 app.post('/api/placements', async (c) => c.json(createPlacement(await c.req.json(), c.get('user').id), 201));

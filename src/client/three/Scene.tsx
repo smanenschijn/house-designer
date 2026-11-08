@@ -13,6 +13,7 @@ import { installDebugBridge } from './debug';
 import { renderParams } from '../renderMode';
 import { FurnitureLayer } from './Furniture';
 import { HouseView } from './HouseView';
+import { WalkControls } from './WalkControls';
 
 const POLAR = 0.95; // ~54° vanaf verticaal
 const FOV = 40;
@@ -143,8 +144,15 @@ function CameraRig({ house }: { house: House }) {
 
   useEffect(() => {
     if (!focusRequest || !controls.current) return;
-    const { center, size: s } = houseExtent(house);
-    visibleHeight.value = s * 1.25 * Math.max(1, size.height / size.width);
+    const roomId = useApp.getState().focusRoom;
+    const focus = roomId ? roomExtent(house, roomId) : null;
+    const { center, size: s } = focus ?? houseExtent(house);
+    visibleHeight.value = s * (focus ? 1.6 : 1.25) * Math.max(1, size.height / size.width);
+    if (focus) {
+      // naar de verdieping van die kamer
+      const li = house.levels.findIndex((l) => Math.abs(l.elevation - focus.center.y) < 0.01);
+      if (li >= 0 && useApp.getState().level !== li) useApp.getState().setLevel(li);
+    }
     place(controls.current, new THREE.Vector3(center.x, controls.current.target.y, center.z), controls.current.getAzimuthalAngle(), controls.current.getPolarAngle());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequest]);
@@ -200,7 +208,7 @@ function SunAndSky({ house }: { house: House }) {
   }, [gl, scene]);
   useEffect(() => {
     scene.environmentIntensity = 0.06 + 0.14 * day;
-    scene.background = camMode === 'persp' ? null : new THREE.Color().lerpColors(new THREE.Color('#1d2430'), new THREE.Color('#dfe7ec'), day);
+    scene.background = camMode !== 'iso' ? null : new THREE.Color().lerpColors(new THREE.Color('#1d2430'), new THREE.Color('#dfe7ec'), day);
   }, [scene, day, camMode]);
 
   const target = useMemo(() => {
@@ -211,7 +219,7 @@ function SunAndSky({ house }: { house: House }) {
 
   return (
     <>
-      {camMode === 'persp' && <Sky distance={4500} sunPosition={[dir.x, dir.y, dir.z]} turbidity={6} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.8} />}
+      {camMode !== 'iso' && <Sky distance={4500} sunPosition={[dir.x, dir.y, dir.z]} turbidity={6} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.8} />}
       <hemisphereLight args={['#dfeaf5', '#9a8f7c', 0.15 + 0.55 * day]} />
       <primitive object={target} />
       <directionalLight
@@ -257,7 +265,8 @@ export function Scene({ house }: { house: House }) {
     >
       <OrthographicCamera makeDefault={camMode === 'iso'} position={[-40, 50, 60]} near={1} far={600} zoom={40} />
       <PerspectiveCamera makeDefault={camMode === 'persp'} position={[-20, 20, 30]} fov={FOV} near={0.1} far={6000} />
-      <CameraRig house={house} />
+      <PerspectiveCamera makeDefault={camMode === 'walk'} position={[0, 1.6, 0]} fov={72} near={0.05} far={6000} />
+      {camMode === 'walk' ? <WalkControls house={house} /> : <CameraRig house={house} />}
       <SunAndSky house={house} />
       <Suspense fallback={null}>
         <HouseView house={house} />

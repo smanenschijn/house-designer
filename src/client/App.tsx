@@ -10,6 +10,8 @@ import { LibraryPanel } from './ui/LibraryPanel';
 import { SelectionBar } from './ui/SelectionBar';
 import { TopBar } from './ui/TopBar';
 import { Consent } from './ui/Consent';
+import { VariantsPanel } from './ui/VariantsPanel';
+import { WalkOverlay } from './ui/WalkOverlay';
 import { oauthQuery, renderParams } from './renderMode';
 
 const house = waalstraat16;
@@ -19,6 +21,7 @@ export function App() {
   const loaded = useApp((s) => s.loaded);
   const panel = useApp((s) => s.panel);
   const error = useApp((s) => s.error);
+  const camMode = useApp((s) => s.camMode);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -84,7 +87,7 @@ export function App() {
     );
 
   return (
-    <div className={`app ${panel ? 'with-panel' : ''}`}>
+    <div className={`app ${panel ? 'with-panel' : ''} ${camMode === 'walk' ? 'walking' : ''}`}>
       <div className="viewport">
         <Scene house={house} />
         {!loaded && <div className="loading">Laden…</div>}
@@ -94,6 +97,8 @@ export function App() {
       {panel === 'library' && <LibraryPanel house={house} />}
       {panel === 'editor' && <ItemEditor />}
       {panel === 'account' && <AccountPanel />}
+      {panel === 'variants' && <VariantsPanel house={house} />}
+      {camMode === 'walk' && <WalkOverlay />}
       {notice && <div className="notice glass">{notice}</div>}
       {error && (
         <div className="toast" onClick={() => useApp.getState().setError(null)}>

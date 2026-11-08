@@ -6,7 +6,7 @@ import type { Item, Placement } from '../../shared/recipe';
 import { snapToWalls } from '../../shared/placement';
 import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
-import { attempt, useApp } from '../store';
+import { attempt, useApp, visiblePlacements } from '../store';
 import { buildRecipe, disposeGroup } from './recipeMesh';
 
 const DEG = Math.PI / 180;
@@ -14,8 +14,13 @@ const DEG = Math.PI / 180;
 /** welke plaatsingen botsen (met elkaar, muren of vaste inbouw)? vloerkleden tellen niet mee */
 export function useCollisions(house: House, levelId: string | null) {
   const placements = useApp((s) => s.placements);
+  const variants = useApp((s) => s.variants);
+  const active = useApp((s) => s.active);
   const items = useApp((s) => s.items);
-  return useMemo(() => new Set(levelId ? findCollisions(house, levelId, placements, items).keys() : []), [house, levelId, placements, items]);
+  return useMemo(
+    () => new Set(levelId ? findCollisions(house, levelId, visiblePlacements({ placements, variants, active }), items).keys() : []),
+    [house, levelId, placements, variants, active, items],
+  );
 }
 
 function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
@@ -58,7 +63,10 @@ function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
 
 export function FurnitureLayer({ house }: { house: House }) {
   const level = useApp((s) => s.level);
-  const placements = useApp((s) => s.placements);
+  const allPlacements = useApp((s) => s.placements);
+  const variants = useApp((s) => s.variants);
+  const active = useApp((s) => s.active);
+  const placements = useMemo(() => visiblePlacements({ placements: allPlacements, variants, active }), [allPlacements, variants, active]);
   const items = useApp((s) => s.items);
   const selectedId = useApp((s) => s.selectedId);
   const activeIndex = level === 'all' ? house.levels.length - 1 : level;
@@ -176,6 +184,7 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       }
       if (e.button !== 0) return;
       const st = useApp.getState();
+      if (st.camMode === 'walk') return;
       const lvl = activeLevel();
       setNdc(e.clientX, e.clientY);
       const id = lvl && st.editMode ? pickPlacement() : null;

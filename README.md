@@ -25,6 +25,13 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 | Verfijnen | pijltjes (1 cm), Shift+pijltjes (10 cm) | — |
 | Snap tijdelijk uit | Alt ingedrukt houden | 🧲-knop |
 
+## Indelingen en rondlopen (fase 3)
+
+- **Indelingen** (knop met de lagen rechtsboven): per kamer meerdere varianten, bijv. *Standaard* en *Bank bij het raam*. Kopiëren, leeg beginnen, hernoemen, verwijderen en met één tik wisselen. Meubels die je plaatst of verschuift horen bij de actieve variant van de kamer waar ze staan.
+- **Afwerking per variant**: vloer (visgraat, laminaat, tegels, beton) en wandkleur (palet of eigen kleur). Binnenmuren krijgen aan elke kant de kleur van de kamer aan die kant.
+- **Prijs per variant**: wat er in die variant nog gekocht moet worden.
+- **Rondlopen** (wandelaar-icoon): op ooghoogte door het huis. Laptop: klik in beeld, WASD/pijltjes, Shift = rennen, Esc = muis los. Telefoon/iPad: joystick linksonder, vegen = rondkijken. Je loopt niet door muren, vaste inbouw of meubels; wel door deuren (ook naar buiten). Wissel van verdieping met de knoppen bovenin.
+
 ## Claude koppelen (fase 2)
 
 1. Ga in claude.ai naar **Instellingen → Connectors → Eigen connector toevoegen** en vul in: `https://huis.<jouwdomein>/mcp` (staat ook in de app onder *Account → Claude koppelen*).
@@ -42,6 +49,8 @@ Wat Claude kan (MCP-tools):
 | `update_furniture_item`, `delete_furniture_item` | aanpassen of verwijderen |
 | `place_furniture`, `move_furniture`, `remove_furniture`, `list_placed_furniture` | inrichten, met muursnap en botsingsmelding |
 | `render_view` | afbeelding van een kamer/verdieping (iso of perspectief, met zonnestand) |
+| `list_room_variants`, `create_room_variant`, `activate_room_variant` | varianten per kamer bekijken, maken (kopie) en wisselen |
+| `set_room_finish` | vloer en wandkleur van een kamer (actieve variant) |
 
 Alle wijzigingen verschijnen direct in de app bij iedereen die hem open heeft (Server-Sent Events), met een melding wie wat deed. Koppelingen intrekken kan onder *Account → Claude koppelen*.
 

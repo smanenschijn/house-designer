@@ -80,6 +80,15 @@ export function TopBar({ house }: { house: House }) {
           {camMode === 'iso' ? 'ISO' : '3D'}
         </button>
         <button
+          className={`icon ${camMode === 'walk' ? 'on' : ''}`}
+          onClick={() => setCamMode(camMode === 'walk' ? 'persp' : 'walk')}
+          title={camMode === 'walk' ? 'Stoppen met rondlopen' : 'Rondlopen op ooghoogte'}
+          aria-label="Rondlopen"
+          aria-pressed={camMode === 'walk'}
+        >
+          <Icon name="walk" />
+        </button>
+        <button
           className={`icon ${showLabels ? 'on' : ''}`}
           onClick={() => setShowLabels(!showLabels)}
           title={showLabels ? 'Kamernamen verbergen' : 'Kamernamen tonen'}
@@ -107,6 +116,10 @@ export function TopBar({ house }: { house: House }) {
 
       <div className="spacer" />
 
+      <button className={`glass varbtn ${panel === 'variants' ? 'on' : ''}`} onClick={() => setPanel(panel === 'variants' ? null : 'variants')} title="Indelingen per kamer">
+        <Icon name="layers" />
+        <span className="varbtn-label">Indelingen</span>
+      </button>
       <button className={`primary libbtn ${panel === 'library' ? 'on' : ''}`} onClick={() => setPanel(panel === 'library' ? null : 'library')}>
         <Icon name="library" />
         Bibliotheek

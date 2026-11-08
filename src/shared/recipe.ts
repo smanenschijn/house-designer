@@ -152,7 +152,8 @@ export const PlacementInputSchema = z.object({
   y: z.number().min(0).default(0),
   /** rotatie om de verticale as, graden */
   rotation: num.default(0),
-  variantId: z.string().default('standaard'),
+  /** wordt door de server bepaald uit de kamer en de actieve variant, tenzij expliciet opgegeven */
+  variantId: z.string().optional(),
 });
 export type PlacementInput = z.input<typeof PlacementInputSchema>;
 

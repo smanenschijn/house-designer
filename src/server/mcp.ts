@@ -19,12 +19,23 @@ import {
   updatePlacement,
 } from './db';
 import { setActor } from './events';
+import { activateVariant, activeMap, createVariant, getVariant, listVariants, updateVariant } from './variants';
+import { FLOOR_LABELS, INDOOR_FLOORS, WALL_COLORS, activeVariantFor, isPlacementVisible } from '../shared/variants';
+import type { FloorMaterial } from '../shared/house';
+
+const visible = () => {
+  const vs = listVariants();
+  const act = activeMap();
+  return listPlacements().filter((p) => isPlacementVisible(p.variantId, vs, act));
+};
 import { renderView } from './render';
 
 const INSTRUCTIONS = `Dit is de inrichtingsapp voor Waalstraat 16 in Nijverdal (twee-onder-een-kap, begane grond, eerste verdieping, zolder).
 Gebruik get_house voor de plattegrond met maten. Meubels maak je als "recept": eenvoudige 3D-vormen op exacte maten (zie create_furniture_item).
 Gebruik altijd de echte maten van het product (breedte × diepte × hoogte); zoek die op als de gebruiker een link of productnaam geeft.
-Plaats meubels met place_furniture en controleer met render_view hoe het eruitziet. Antwoord de gebruiker in het Nederlands.`;
+Plaats meubels met place_furniture en controleer met render_view hoe het eruitziet.
+Elke kamer kan meerdere varianten hebben (list_room_variants). Wil de gebruiker een alternatief proberen, maak dan eerst een variant (create_room_variant) zodat de huidige opstelling bewaard blijft. Vloer en wandkleur stel je in met set_room_finish.
+Antwoord de gebruiker in het Nederlands.`;
 
 const RECIPE_GUIDE = `Recept (JSON), alles in meters:
 - size: { width (x), depth (z), height (y) } = buitenmaten van het meubel.
@@ -74,7 +85,8 @@ function placementInfo(pid: string) {
   const it = getItem(p.itemId);
   const level = house.levels.find((l) => l.id === p.levelId)!;
   const room = roomOf(level, p.x, p.z);
-  const collisions = findCollisions(house, p.levelId, listPlacements(), listItems()).get(p.id) ?? [];
+  const collisions = findCollisions(house, p.levelId, visible(), listItems()).get(p.id) ?? [];
+  const variant = getVariant(p.variantId);
   return {
     placement_id: p.id,
     item_id: p.itemId,
@@ -85,6 +97,7 @@ function placementInfo(pid: string) {
     x: Math.round(p.x * 100) / 100,
     z: Math.round(p.z * 100) / 100,
     rotation: Math.round(p.rotation),
+    variant: variant ? `${variant.name}${isPlacementVisible(p.variantId, listVariants(), activeMap()) ? '' : ' (niet actief)'}` : 'buiten',
     collisions: collisions.length ? collisions : 'geen',
   };
 }
@@ -280,13 +293,17 @@ export function buildMcpServer(user: PublicUser) {
     'list_placed_furniture',
     {
       title: 'Geplaatste meubels',
-      description: 'Welke meubels staan waar (verdieping, kamer, positie, rotatie) en of ze ergens mee botsen.',
-      inputSchema: { level: z.string().optional().describe('bg, 1e of zolder'), room: z.string().optional() },
+      description: 'Welke meubels staan waar (verdieping, kamer, positie, rotatie, variant) en of ze ergens mee botsen. Standaard alleen de actieve varianten.',
+      inputSchema: {
+        level: z.string().optional().describe('bg, 1e of zolder'),
+        room: z.string().optional(),
+        include_inactive: z.boolean().optional().describe('ook meubels uit niet-actieve varianten'),
+      },
       annotations: { readOnlyHint: true },
     },
-    async ({ level, room }) => {
+    async ({ level, room, include_inactive }) => {
       const lv = resolveLevel(level);
-      const list = listPlacements()
+      const list = (include_inactive ? listPlacements() : visible())
         .filter((p) => !lv || p.levelId === lv.id)
         .map((p) => placementInfo(p.id)!)
         .filter((p) => !room || p.room.toLowerCase().includes(room.toLowerCase()));
@@ -387,6 +404,100 @@ export function buildMcpServer(user: PublicUser) {
       actor(`“${info.name}” weggehaald`);
       deletePlacement(placement_id);
       return text(`“${info.name}” is weggehaald uit ${info.room}.`);
+    },
+  );
+
+  // ---------- varianten en afwerking ----------
+  const roomOrFail = (q: string) => findRoom(house, q);
+
+  server.registerTool(
+    'list_room_variants',
+    {
+      title: 'Varianten per kamer',
+      description:
+        'Toont per kamer de varianten (bijv. "Standaard", "Met hoekbank"), welke actief is, hoeveel meubels erin staan en de afwerking (vloer, wandkleur). Alleen de actieve variant is zichtbaar in de app.',
+      inputSchema: { room: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ room }) => {
+      const act = activeMap();
+      const all = listVariants();
+      const placements = listPlacements();
+      const rooms = house.levels.flatMap((l) => l.rooms.map((r) => ({ l, r }))).filter(({ r }) => !room || roomOrFail(room)?.room.id === r.id);
+      return json(
+        rooms.map(({ l, r }) => ({
+          room: r.name,
+          room_id: r.id,
+          level: l.name,
+          variants: all
+            .filter((v) => v.roomId === r.id)
+            .map((v) => ({
+              variant_id: v.id,
+              name: v.name,
+              active: activeVariantFor(act, r.id) === v.id,
+              furniture: placements.filter((p) => p.variantId === v.id).length,
+              floor: FLOOR_LABELS[v.finish.floor ?? r.floor],
+              wall_color: v.finish.wallColor ?? null,
+            })),
+        })),
+      );
+    },
+  );
+
+  server.registerTool(
+    'create_room_variant',
+    {
+      title: 'Nieuwe variant voor een kamer',
+      description:
+        'Maakt een nieuwe variant voor een kamer en zet die actief. Met copy_current (standaard aan) worden de meubels en afwerking van de huidige variant gekopieerd, zodat je daarna kunt schuiven en vervangen zonder het origineel kwijt te raken.',
+      inputSchema: { room: z.string(), name: z.string().min(1), copy_current: z.boolean().optional() },
+    },
+    async ({ room, name, copy_current }) => {
+      const found = roomOrFail(room);
+      if (!found) return fail(`Kamer “${room}” niet gevonden.`);
+      actor(`variant “${name}” voor ${found.room.name}`);
+      const v = createVariant(
+        { roomId: found.room.id, name, copyFrom: copy_current === false ? undefined : activeVariantFor(activeMap(), found.room.id) },
+        user.id,
+      );
+      return json({ variant_id: v.id, name: v.name, room: found.room.name, active: true });
+    },
+  );
+
+  server.registerTool(
+    'activate_room_variant',
+    {
+      title: 'Variant tonen',
+      description: 'Maakt een variant actief (zichtbaar in de app) voor de kamer waar hij bij hoort.',
+      inputSchema: { variant_id: z.string() },
+    },
+    async ({ variant_id }) => {
+      const v = getVariant(variant_id);
+      if (!v) return fail('Variant niet gevonden.');
+      actor(`variant “${v.name}” getoond`);
+      activateVariant(variant_id);
+      return text(`Variant “${v.name}” is nu actief.`);
+    },
+  );
+
+  server.registerTool(
+    'set_room_finish',
+    {
+      title: 'Vloer of wandkleur',
+      description: `Past de vloer en/of wandkleur van een kamer aan (in de actieve variant). Vloeren: ${INDOOR_FLOORS.join(', ')}. Wandkleur als #rrggbb; voorbeelden: ${WALL_COLORS.map((c) => `${c.name} ${c.hex}`).join(', ')}.`,
+      inputSchema: {
+        room: z.string(),
+        floor: z.enum(INDOOR_FLOORS as [FloorMaterial, ...FloorMaterial[]]).optional(),
+        wall_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      },
+    },
+    async ({ room, floor, wall_color }) => {
+      const found = roomOrFail(room);
+      if (!found) return fail(`Kamer “${room}” niet gevonden.`);
+      const id = activeVariantFor(activeMap(), found.room.id);
+      actor(`afwerking ${found.room.name} aangepast`);
+      const v = updateVariant(id, { finish: { ...(floor ? { floor } : {}), ...(wall_color ? { wallColor: wall_color } : {}) } });
+      return json({ room: found.room.name, variant: v.name, floor: FLOOR_LABELS[v.finish.floor ?? found.room.floor], wall_color: v.finish.wallColor });
     },
   );
 

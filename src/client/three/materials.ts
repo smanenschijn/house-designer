@@ -316,7 +316,7 @@ const wallTex = (t: THREE.Texture, w: number, h: number) => {
 };
 
 /** muren: uv in meters (u langs de muur, v omhoog), vertexkleur voor bovenkanten */
-export const paintMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, color: '#ede8e0' });
+export const paintMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, color: '#ffffff' });
 export const brickMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#ffffff' });
 export const partyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: '#cfcac2' });
 if (typeof document !== 'undefined') {

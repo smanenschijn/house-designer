@@ -152,12 +152,20 @@ export function getPlacement(id: string): Placement | null {
   const r = db.prepare(`SELECT * FROM placements WHERE id = ?`).get(id) as PlacementRow | undefined;
   return r ? toPlacement(r) : null;
 }
+/** bepaalt de variant van een plaatsing uit verdieping en positie (ingesteld door variants.ts) */
+type VariantResolver = (levelId: string, x: number, z: number, current?: string) => string;
+let resolveVariant: VariantResolver = () => 'buiten';
+export function setVariantResolver(fn: VariantResolver) {
+  resolveVariant = fn;
+}
+
 export function createPlacement(input: PlacementInput, userId: string | null): Placement {
   const v = PlacementInputSchema.parse(input);
   if (!getItem(v.itemId)) throw new Error('Onbekend meubel');
   const id = randomUUID();
+  const variantId = v.variantId ?? resolveVariant(v.levelId, v.x, v.z);
   db.prepare(`INSERT INTO placements (id, item_id, level_id, variant_id, x, z, y, rotation, created_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    id, v.itemId, v.levelId, v.variantId, v.x, v.z, v.y, v.rotation, userId, now(),
+    id, v.itemId, v.levelId, variantId, v.x, v.z, v.y, v.rotation, userId, now(),
   );
   bumpVersion();
   return getPlacement(id)!;
@@ -165,9 +173,11 @@ export function createPlacement(input: PlacementInput, userId: string | null): P
 export function updatePlacement(id: string, input: Partial<PlacementInput>): Placement | null {
   const cur = getPlacement(id);
   if (!cur) return null;
-  const v = PlacementInputSchema.parse({ ...cur, ...input });
+  const v = PlacementInputSchema.parse({ ...cur, ...input, variantId: input.variantId });
+  // naar een andere kamer verplaatst? dan hoort hij bij de actieve variant van die kamer
+  const variantId = v.variantId ?? resolveVariant(v.levelId, v.x, v.z, cur.variantId);
   db.prepare(`UPDATE placements SET level_id = ?, variant_id = ?, x = ?, z = ?, y = ?, rotation = ?, updated_at = ? WHERE id = ?`).run(
-    v.levelId, v.variantId, v.x, v.z, v.y, v.rotation, now(), id,
+    v.levelId, variantId, v.x, v.z, v.y, v.rotation, now(), id,
   );
   bumpVersion();
   return getPlacement(id);

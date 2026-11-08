@@ -1,4 +1,5 @@
 import type { Item, ItemInput, Placement, PlacementInput } from '../shared/recipe';
+import type { ActiveMap, RoomFinish, Variant } from '../shared/variants';
 
 export interface User {
   id: string;
@@ -60,6 +61,8 @@ export interface StateSnapshot {
   items: Item[];
   placements: Placement[];
   users: User[];
+  variants: Variant[];
+  active: ActiveMap;
   version: number;
 }
 
@@ -91,4 +94,8 @@ export const api = {
   createPlacement: (input: PlacementInput) => req<Placement>('POST', '/api/placements', input),
   updatePlacement: (id: string, input: Partial<PlacementInput>) => req<Placement>('PUT', `/api/placements/${id}`, input),
   deletePlacement: (id: string) => req<void>('DELETE', `/api/placements/${id}`),
+  createVariant: (input: { roomId: string; name: string; copyFrom?: string }) => req<Variant>('POST', '/api/variants', input),
+  updateVariant: (id: string, input: { name?: string; finish?: RoomFinish }) => req<Variant>('PUT', `/api/variants/${encodeURIComponent(id)}`, input),
+  activateVariant: (id: string) => req<Variant>('POST', `/api/variants/${encodeURIComponent(id)}/activate`),
+  deleteVariant: (id: string) => req<void>('DELETE', `/api/variants/${encodeURIComponent(id)}`),
 };
