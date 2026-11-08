@@ -1,12 +1,13 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, OrthographicCamera, PerspectiveCamera, Sky } from '@react-three/drei';
+import { AdaptiveDpr, OrbitControls, OrthographicCamera, PerspectiveCamera, Sky } from '@react-three/drei';
 import { EffectComposer, N8AO, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { House } from '../../shared/house';
 import { sunDirection, sunPosition } from '../../shared/sun';
 import { useApp } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { viewState } from '../viewState';
 import { roomEnvironment } from './environment';
 import { installDebugBridge } from './debug';
@@ -84,6 +85,7 @@ function CameraRig({ house }: { house: House }) {
     c.update();
   };
 
+  const invalidate = useThree((s) => s.invalidate);
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c) return;
@@ -100,6 +102,7 @@ function CameraRig({ house }: { house: House }) {
         place(c, viewState.target.clone(), useApp.getState().azimuth, Math.min(c.getPolarAngle(), camera.type === 'OrthographicCamera' ? 1.25 : 1.5));
       }
       initFor.current = camera;
+      invalidate();
     }
     const dy = targetY.current - c.target.y;
     if (Math.abs(dy) > 0.001) {
@@ -107,6 +110,7 @@ function CameraRig({ house }: { house: House }) {
       c.target.y += step;
       camera.position.y += step;
       c.update();
+      invalidate();
     }
     if (anim.current) {
       const cur = c.getAzimuthalAngle();
@@ -118,6 +122,7 @@ function CameraRig({ house }: { house: House }) {
       camera.position.copy(c.target).add(offset);
       c.update();
       if (Math.abs(diff) < 0.002) anim.current = null;
+      invalidate();
     }
     viewState.target.copy(c.target);
     // zichtbare hoogte bijhouden voor het wisselen van camera
@@ -140,6 +145,7 @@ function CameraRig({ house }: { house: House }) {
     const dir = rotateRequest > lastRot.current ? 1 : -1;
     lastRot.current = rotateRequest;
     anim.current = { az: snapped + dir * step };
+    invalidate();
   }, [rotateRequest]);
 
   useEffect(() => {
@@ -170,6 +176,7 @@ function CameraRig({ house }: { house: House }) {
       minDistance={1.5}
       maxDistance={120}
       screenSpacePanning={false}
+      regress
       zoomSpeed={persp ? 2.2 : 1}
       mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
       touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
@@ -179,7 +186,8 @@ function CameraRig({ house }: { house: House }) {
 
 /** Zon op de berekende stand voor Nijverdal, plus hemel- en omgevingslicht. */
 function SunAndSky({ house }: { house: House }) {
-  const { gl, scene } = useThree();
+  const { gl, scene, get } = useThree();
+  const getCam = () => get().camera;
   const sun = useApp((s) => s.sun);
   const camMode = useApp((s) => s.camMode);
   const mobile = isMobile();
@@ -199,9 +207,12 @@ function SunAndSky({ house }: { house: House }) {
   const pos = center.clone().add(dir.clone().multiplyScalar(60));
 
   useEffect(() => {
-    gl.shadowMap.type = THREE.PCFSoftShadowMap;
+    gl.shadowMap.type = THREE.PCFShadowMap;
+    // de zon staat stil: schaduw alleen opnieuw berekenen als er iets verandert (zie ShadowUpdater)
+    gl.shadowMap.autoUpdate = !!renderParams;
+    gl.shadowMap.needsUpdate = true;
     scene.environment = roomEnvironment(gl);
-    if (import.meta.env.DEV) installDebugBridge(scene, gl);
+    if (import.meta.env.DEV) installDebugBridge(scene, gl, () => getCam());
     return () => {
       scene.environment = null;
     };
@@ -243,6 +254,27 @@ function SunAndSky({ house }: { house: House }) {
   );
 }
 
+/**
+ * Werkt de schaduwkaart bij als zon, meubels, varianten of verdieping veranderen
+ * (niet bij camerabewegingen: het licht en de schaduwcamera staan vast).
+ */
+function ShadowUpdater() {
+  const { gl, invalidate } = useThree();
+  const deps = useApp(useShallow((s) => [s.sun, s.placements, s.items, s.variants, s.active, s.level, s.camMode] as const));
+  useEffect(() => {
+    // twee frames: de eerste na het opbouwen van nieuwe objecten, de tweede voor de zekerheid
+    gl.shadowMap.needsUpdate = true;
+    invalidate();
+    const t = setTimeout(() => {
+      gl.shadowMap.needsUpdate = true;
+      invalidate();
+    }, 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gl, invalidate, ...deps]);
+  return null;
+}
+
 function Effects() {
   const mobile = isMobile();
   return (
@@ -255,11 +287,15 @@ function Effects() {
 
 export function Scene({ house }: { house: House }) {
   const camMode = useApp((s) => s.camMode);
+  const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
   return (
     <Canvas
       shadows
-      dpr={renderParams ? 1 : [1, 2]}
-      gl={{ antialias: false, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+      // alleen tekenen als er iets verandert; tijdens rondlopen (en voor afbeeldingen) continu
+      frameloop={camMode === 'walk' || renderParams ? 'always' : 'demand'}
+      dpr={renderParams ? 1 : coarse ? [1, 1.5] : [1, 2]}
+      performance={{ min: 0.55, debounce: 250 }}
+      gl={{ antialias: false, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       onContextMenu={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
     >
@@ -273,6 +309,9 @@ export function Scene({ house }: { house: House }) {
         <FurnitureLayer house={house} />
       </Suspense>
       <Effects />
+      <ShadowUpdater />
+      {/* tijdens camerabewegingen tijdelijk lagere resolutie */}
+      {!renderParams && <AdaptiveDpr />}
       <RenderReady />
     </Canvas>
   );

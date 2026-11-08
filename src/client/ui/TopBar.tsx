@@ -3,6 +3,22 @@ import { useApp } from '../store';
 import { Icon } from './Icon';
 import { SunControl } from './SunControl';
 
+/** kompas als eigen component: alleen dit stukje rendert opnieuw tijdens het draaien */
+function Compass({ north }: { north: [number, number] }) {
+  const azimuth = useApp((s) => Math.round(s.azimuth * 30) / 30);
+  const [nx, nz] = north;
+  const right = [Math.cos(azimuth), -Math.sin(azimuth)];
+  const up = [-Math.sin(azimuth), -Math.cos(azimuth)];
+  const deg = (Math.atan2(nx * right[0] + nz * right[1], nx * up[0] + nz * up[1]) * 180) / Math.PI;
+  return (
+    <div className="compass" title="Noorden">
+      <span style={{ transform: `rotate(${deg}deg)` }}>
+        <Icon name="north" size={16} fill="currentColor" strokeWidth={1} />
+      </span>
+    </div>
+  );
+}
+
 export function TopBar({ house }: { house: House }) {
   const level = useApp((s) => s.level);
   const setLevel = useApp((s) => s.setLevel);
@@ -13,7 +29,6 @@ export function TopBar({ house }: { house: House }) {
   const panel = useApp((s) => s.panel);
   const setPanel = useApp((s) => s.setPanel);
   const user = useApp((s) => s.user);
-  const azimuth = useApp((s) => s.azimuth);
   const camMode = useApp((s) => s.camMode);
   const setCamMode = useApp((s) => s.setCamMode);
   const showLabels = useApp((s) => s.showLabels);
@@ -22,11 +37,6 @@ export function TopBar({ house }: { house: House }) {
   const setEditMode = useApp((s) => s.setEditMode);
   const setShowLabels = useApp((s) => s.setShowLabels);
 
-  // kompas: noordvector geprojecteerd op scherm-rechts en scherm-boven
-  const [nx, nz] = house.north;
-  const right = [Math.cos(azimuth), -Math.sin(azimuth)];
-  const up = [-Math.sin(azimuth), -Math.cos(azimuth)];
-  const compassDeg = (Math.atan2(nx * right[0] + nz * right[1], nx * up[0] + nz * up[1]) * 180) / Math.PI;
 
   return (
     <div className="topbar">
@@ -107,11 +117,7 @@ export function TopBar({ house }: { house: House }) {
           <Icon name={editMode ? 'unlock' : 'lock'} />
         </button>
         <SunControl />
-        <div className="compass" title="Noorden">
-          <span style={{ transform: `rotate(${compassDeg}deg)` }}>
-            <Icon name="north" size={16} fill="currentColor" strokeWidth={1} />
-          </span>
-        </div>
+        <Compass north={house.north} />
       </div>
 
       <div className="spacer" />

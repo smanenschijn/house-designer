@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
-import type { House, Wall } from '../../shared/house';
+import type { House, Level } from '../../shared/house';
 import { useApp } from '../store';
 import {
   STUB,
+  buildCeilings,
   buildFences,
   buildFixtures,
   buildFloors,
@@ -13,7 +14,6 @@ import {
   buildRoofs,
   buildShadowProxy,
   buildSkirting,
-  buildCeilings,
   buildWalls,
   cutawaySet,
   type WallColorAt,
@@ -22,11 +22,37 @@ import {
 import { pointInPolygon } from '../../shared/placement';
 import { activeFinishes, type RoomFinish } from '../../shared/variants';
 import { brickMaterial, groundMaterial, paintMaterial, partyMaterial, skirtingMaterial } from './materials';
+import { mergeByMaterial } from './merge';
 
-/** cutaway alleen opnieuw berekenen per 22,5°-sector */
+/** cutaway alleen opnieuw bepalen per 22,5°-sector */
 const sector = (az: number) => Math.round(az / (Math.PI / 8));
 
-function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels, finishes, walking }: {
+/** muurlagen + ramen/deuren van een (deel)verdieping als één samengevoegde groep */
+function wallGroup(level: Level, cut: number | null, wallColorAt: WallColorAt): THREE.Group {
+  const g = new THREE.Group();
+  const geos = buildWalls(level, () => cut, wallColorAt);
+  const add = (geo: THREE.BufferGeometry | null, mat: THREE.Material) => {
+    if (!geo) return;
+    const m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    g.add(m);
+  };
+  add(geos.paint, paintMaterial);
+  add(geos.brick, brickMaterial);
+  add(geos.party, partyMaterial);
+  // ramen en deuren samengevoegd per materiaal (veel minder tekenopdrachten)
+  g.add(mergeByMaterial(buildOpenings(level, () => cut)));
+  return g;
+}
+
+function disposeTree(o: THREE.Object3D) {
+  o.traverse((x) => {
+    const m = x as THREE.Mesh;
+    if (m.isMesh) m.geometry.dispose();
+  });
+}
+
+const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels, finishes, walking }: {
   house: House;
   index: number;
   active: boolean;
@@ -38,55 +64,75 @@ function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels,
   walking: boolean;
 }) {
   const level = house.levels[index];
-  // alleen opnieuw opbouwen als de afwerking van déze verdieping verandert
+  // alleen opnieuw opbouwen als de afwerking van déze verdieping verandert (niet bij draaien!)
   const finishKey = JSON.stringify(level.rooms.map((r) => finishes[r.id] ?? null));
-  const objects = useMemo(() => {
-    const az = azKey * (Math.PI / 8);
-    const camDir = new THREE.Vector2(-Math.sin(az), -Math.cos(az));
-    const lowered = active && wallMode === 'cutaway' ? cutawaySet(level, camDir) : new Set<string>();
-    // alleen buitenmuren kunnen omlaag; binnenmuren blijven altijd hoog
-    const cutFor = (w: Wall): number | null => {
-      if (walking || showAll || !active || !w.outside) return null;
-      if (wallMode === 'down') return STUB;
-      if (wallMode === 'cutaway' && lowered.has(w.id)) return STUB;
-      return null;
-    };
+
+  const statics = useMemo(() => {
     const fin: (RoomFinish | null)[] = JSON.parse(finishKey);
     const byRoom = new Map(level.rooms.map((r, i) => [r.id, fin[i]]));
     const wallColorAt: WallColorAt = (x, z) => {
       const room = level.rooms.find((r) => pointInPolygon([x, z], r.polygon));
       return room ? (byRoom.get(room.id)?.wallColor ?? null) : null;
     };
-    return {
-      walls: buildWalls(level, cutFor, wallColorAt),
-      skirting: buildSkirting(level),
-      openings: buildOpenings(level, cutFor),
-      floors: buildFloors(level.rooms, level.elevation, index === 0 ? 0 : 0.2, 0.004, 0, (r) => byRoom.get(r.id)?.floor ?? r.floor),
-      // plafondelementen (verlaagd plafond, airco) alleen met muren hoog; anders zweven ze boven de kamer
-      fixtures: buildFixtures(level.fixtures, level.elevation, walking || showAll || !active || wallMode === 'up'),
-      // plafonds alleen tijdens het rondlopen (van bovenaf zouden ze het zicht blokkeren)
-      ceilings: walking && active ? buildCeilings(house, index) : null,
-    };
-  }, [level, index, active, wallMode, azKey, showAll, finishKey, walking]);
+    // binnenmuren: altijd hoog, één keer opbouwen
+    const interior = wallGroup({ ...level, walls: level.walls.filter((w) => !w.outside) }, null, wallColorAt);
+    // gevels: een hoge én een lage versie; bij draaien wisselen we alleen de zichtbaarheid
+    const exterior = level.walls
+      .filter((w) => w.outside)
+      .map((w) => {
+        const one = { ...level, walls: [w] };
+        return { id: w.id, full: wallGroup(one, null, wallColorAt), stub: wallGroup(one, STUB, wallColorAt) };
+      });
+    const skirting = buildSkirting(level);
+    const floors = buildFloors(level.rooms, level.elevation, index === 0 ? 0 : 0.2, 0.004, 0, (r) => byRoom.get(r.id)?.floor ?? r.floor);
+    const lowFixtures = mergeByMaterial(buildFixtures(level.fixtures.filter((f) => !f.high), level.elevation, true));
+    const highFixtures = mergeByMaterial(buildFixtures(level.fixtures.filter((f) => f.high), level.elevation, true));
+    return { interior, exterior, skirting, floors, lowFixtures, highFixtures };
+  }, [level, index, finishKey]);
 
   useEffect(
     () => () => {
-      Object.values(objects.walls).forEach((g) => g?.dispose());
-      objects.skirting?.dispose();
+      disposeTree(statics.interior);
+      statics.exterior.forEach((e) => {
+        disposeTree(e.full);
+        disposeTree(e.stub);
+      });
+      statics.skirting?.dispose();
+      disposeTree(statics.lowFixtures);
+      disposeTree(statics.highFixtures);
     },
-    [objects],
+    [statics],
   );
+
+  // plafonds alleen tijdens het rondlopen
+  const ceilings = useMemo(() => (walking && active ? buildCeilings(house, index) : null), [walking, active, house, index]);
+
+  const lowered = useMemo(() => {
+    if (walking || showAll || !active) return new Set<string>();
+    if (wallMode === 'down') return new Set(statics.exterior.map((e) => e.id));
+    if (wallMode === 'cutaway') {
+      const az = azKey * (Math.PI / 8);
+      return cutawaySet(level, new THREE.Vector2(-Math.sin(az), -Math.cos(az)));
+    }
+    return new Set<string>();
+  }, [walking, showAll, active, wallMode, azKey, level, statics]);
+
+  const showHigh = walking || showAll || !active || wallMode === 'up';
 
   return (
     <group>
-      {objects.walls.paint && <mesh geometry={objects.walls.paint} material={paintMaterial} receiveShadow />}
-      {objects.walls.brick && <mesh geometry={objects.walls.brick} material={brickMaterial} receiveShadow />}
-      {objects.walls.party && <mesh geometry={objects.walls.party} material={partyMaterial} receiveShadow />}
-      {objects.skirting && <mesh geometry={objects.skirting} material={skirtingMaterial} receiveShadow />}
-      <primitive object={objects.openings} />
-      <primitive object={objects.floors} />
-      <primitive object={objects.fixtures} />
-      {objects.ceilings && <primitive object={objects.ceilings} />}
+      <primitive object={statics.interior} />
+      {statics.exterior.map((e) => (
+        <group key={e.id}>
+          <primitive object={e.full} visible={!lowered.has(e.id)} />
+          <primitive object={e.stub} visible={lowered.has(e.id)} />
+        </group>
+      ))}
+      {statics.skirting && <mesh geometry={statics.skirting} material={skirtingMaterial} receiveShadow />}
+      <primitive object={statics.floors} />
+      <primitive object={statics.lowFixtures} />
+      <primitive object={statics.highFixtures} visible={showHigh} />
+      {ceilings && <primitive object={ceilings} />}
       {active && !showAll && showLabels && !walking &&
         level.rooms
           .filter((r) => r.label)
@@ -97,18 +143,18 @@ function LevelMesh({ house, index, active, wallMode, azKey, showAll, showLabels,
           ))}
     </group>
   );
-}
+});
 
 export function HouseView({ house }: { house: House }) {
   const level = useApp((s) => s.level);
   const wallMode = useApp((s) => s.wallMode);
-  const azimuth = useApp((s) => s.azimuth);
+  // alleen opnieuw renderen als de sector verandert, niet bij elke graad
+  const azKey = useApp((s) => sector(s.azimuth));
   const showLabels = useApp((s) => s.showLabels);
   const variants = useApp((s) => s.variants);
   const activeVariants = useApp((s) => s.active);
   const finishes = useMemo(() => activeFinishes(variants, activeVariants), [variants, activeVariants]);
   const walking = useApp((s) => s.camMode === 'walk');
-  const azKey = sector(azimuth);
   const showAll = level === 'all';
   const activeIndex = showAll ? house.levels.length - 1 : level;
 
@@ -117,12 +163,18 @@ export function HouseView({ house }: { house: House }) {
     g.add(buildFloors(house.outdoor.areas, -0.025, 0, 0, 0.003));
     g.add(buildFences(house.outdoor.fences));
     g.add(buildFixtures(house.outdoor.fixtures, 0, true));
-    return g;
+    return mergeByMaterial(g);
   }, [house]);
-  const roofs = useMemo(() => buildRoofs(house.roofs), [house]);
+  const roofs = useMemo(() => mergeByMaterial(buildRoofs(house.roofs)), [house]);
   const neighbors = useMemo(() => buildNeighbors(house), [house]);
   // schaduwmodel: altijd aanwezig, onzichtbaar
-  const shadowProxy = useMemo(() => buildShadowProxy(house), [house]);
+  const shadowProxy = useMemo(() => {
+    const g = mergeByMaterial(buildShadowProxy(house));
+    g.traverse((o) => {
+      (o as THREE.Mesh).raycast = () => undefined;
+    });
+    return g;
+  }, [house]);
 
   const b = house.outdoor.bounds;
   return (

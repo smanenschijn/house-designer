@@ -8,6 +8,7 @@ import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
 import { buildRecipe, disposeGroup } from './recipeMesh';
+import { mergeByMaterial } from './merge';
 
 const DEG = Math.PI / 180;
 
@@ -31,7 +32,13 @@ function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
   colliding: boolean;
   interactive: boolean;
 }) {
-  const obj = useMemo(() => buildRecipe(item.recipe), [item.recipe]);
+  // onderdelen samenvoegen per materiaal: 2–4 tekenopdrachten per meubel i.p.v. 10–20
+  const obj = useMemo(() => {
+    const raw = buildRecipe(item.recipe);
+    const merged = mergeByMaterial(raw);
+    disposeGroup(raw);
+    return merged;
+  }, [item.recipe]);
   useEffect(() => () => disposeGroup(obj), [obj]);
   const y = elevation + (p.y ?? 0) + (item.recipe.elevation ?? 0);
   const { width: w, depth: d, height: h } = item.recipe.size;
