@@ -3,8 +3,24 @@ import { roomAt, snapToWalls } from '../../shared/placement';
 import { waalstraat16 } from '../../shared/waalstraat16';
 import type { Item } from '../../shared/recipe';
 import { api } from '../api';
-import { attempt, useApp } from '../store';
+import { attempt, useApp, visiblePlacements } from '../store';
+import { findSupport, isResting } from '../../shared/stacking';
+import type { Placement } from '../../shared/recipe';
 import { viewState } from '../viewState';
+
+/**
+ * Nieuwe hoogte na verschuiven/draaien: stond het ergens op (vloer, tafel, kast),
+ * dan komt het op wat er nu onder staat. Bewust zwevende dingen blijven op hun hoogte.
+ */
+function restingY(p: Placement, next: { x: number; z: number; rotation: number }): number {
+  const st = useApp.getState();
+  const level = waalstraat16.levels.find((l) => l.id === p.levelId);
+  const it = st.items.find((i) => i.id === p.itemId);
+  if (!level || !it) return p.y ?? 0;
+  const visible = visiblePlacements(st);
+  if (!isResting(level, p, it, visible, st.items)) return p.y ?? 0;
+  return findSupport(level, next, it, p.id, visible, st.items).y;
+}
 
 /** Plaats een bibliotheekitem midden in beeld op de actieve verdieping. */
 export async function placeItem(house: House, item: Item) {
@@ -23,7 +39,9 @@ export async function placeItem(house: House, item: Item) {
     z = c[1];
   }
   li = house.levels.indexOf(level);
-  const p = await attempt(() => api.createPlacement({ itemId: item.id, levelId: level.id, x, z, rotation: 0 }));
+  // midden in beeld staat een tafel? dan komt de plant erop
+  const y = findSupport(level, { x, z, rotation: 0 }, item, null, visiblePlacements(useApp.getState()), useApp.getState().items).y;
+  const p = await attempt(() => api.createPlacement({ itemId: item.id, levelId: level.id, x, z, rotation: 0, y }));
   if (p) {
     useApp.getState().upsertPlacement(p);
     useApp.getState().select(p.id);
@@ -43,8 +61,9 @@ export async function rotateSelected(delta: number) {
     const s = snapToWalls({ x, z, hw: it.recipe.size.width / 2, hd: it.recipe.size.depth / 2, rot: rotation }, level, 0.15);
     if (s.snappedTo.length) ({ x, z, rot: rotation } = s);
   }
-  st.patchPlacementLocal(p.id, { rotation, x, z });
-  const res = await attempt(() => api.updatePlacement(p.id, { rotation, x, z }));
+  const y = restingY(p, { x, z, rotation });
+  st.patchPlacementLocal(p.id, { rotation, x, z, y });
+  const res = await attempt(() => api.updatePlacement(p.id, { rotation, x, z, y }));
   if (res) useApp.getState().upsertPlacement(res);
 }
 
@@ -54,8 +73,9 @@ export async function nudgeSelected(dx: number, dz: number) {
   if (!p) return;
   const x = Math.round((p.x + dx) * 1000) / 1000;
   const z = Math.round((p.z + dz) * 1000) / 1000;
-  st.patchPlacementLocal(p.id, { x, z });
-  const res = await attempt(() => api.updatePlacement(p.id, { x, z }));
+  const y = restingY(p, { x, z, rotation: p.rotation });
+  st.patchPlacementLocal(p.id, { x, z, y });
+  const res = await attempt(() => api.updatePlacement(p.id, { x, z, y }));
   if (res) useApp.getState().upsertPlacement(res);
 }
 
@@ -71,9 +91,9 @@ export async function duplicateSelected() {
   const st = useApp.getState();
   const p = st.placements.find((x) => x.id === st.selectedId);
   if (!p) return;
-  const np = await attempt(() =>
-    api.createPlacement({ itemId: p.itemId, levelId: p.levelId, x: p.x + 0.3, z: p.z + 0.3, rotation: p.rotation, y: p.y }),
-  );
+  const x = p.x + 0.3;
+  const z = p.z + 0.3;
+  const np = await attempt(() => api.createPlacement({ itemId: p.itemId, levelId: p.levelId, x, z, rotation: p.rotation, y: restingY(p, { x, z, rotation: p.rotation }) }));
   if (np) {
     useApp.getState().upsertPlacement(np);
     useApp.getState().select(np.id);

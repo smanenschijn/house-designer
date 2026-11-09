@@ -214,6 +214,13 @@ export function installDebugBridge(scene: THREE.Scene, gl: THREE.WebGLRenderer, 
     }
     document.body.dataset.hdZfight = JSON.stringify([...hits.values()].sort((x, y) => y.count - x.count));
   });
+  // schermpositie van een wereldpunt (voor sleeptests): body.dataset.hdProject = "x,y,z" -> hdProjected = "px,py"
+  window.addEventListener('hd-debug-project', () => {
+    const [x, y, z] = (document.body.dataset.hdProject ?? '0,0,0').split(',').map(Number);
+    const v = new THREE.Vector3(x, y, z).project(getCamera());
+    const r = gl.domElement.getBoundingClientRect();
+    document.body.dataset.hdProjected = `${r.left + ((v.x + 1) / 2) * r.width},${r.top + ((1 - v.y) / 2) * r.height}`;
+  });
   window.addEventListener('hd-debug-proxy', () => {
     const on = !shadowOnlyMaterial.colorWrite;
     shadowOnlyMaterial.colorWrite = on;

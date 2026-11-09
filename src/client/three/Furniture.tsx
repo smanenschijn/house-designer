@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { House } from '../../shared/house';
 import type { Item, Placement } from '../../shared/recipe';
 import { pointInPolygon, snapToWalls } from '../../shared/placement';
+import { findSupport, isOnTop, isResting } from '../../shared/stacking';
 import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
@@ -158,7 +159,20 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
     const ndc = new THREE.Vector2();
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const hit = new THREE.Vector3();
-    let drag: null | { id: string; pointerId: number; offX: number; offZ: number; moved: boolean; startX: number; startY: number; orig: Placement } = null;
+    let drag: null | {
+      id: string;
+      pointerId: number;
+      offX: number;
+      offZ: number;
+      moved: boolean;
+      startX: number;
+      startY: number;
+      orig: Placement;
+      /** stond het op de vloer of op iets? dan zoekt het tijdens slepen een nieuwe ondergrond */
+      resting: boolean;
+      /** wat erop staat (plant op de tafel) schuift mee */
+      riders: Placement[];
+    } = null;
     let tap: null | { x: number; y: number; t: number } = null;
     /** touch: vinger op een (nog niet geselecteerd) meubel, wachten op lang vasthouden */
     let press: null | { id: string; pointerId: number; x: number; y: number; lastX: number; lastY: number; timer: ReturnType<typeof setTimeout> } = null;
@@ -260,7 +274,26 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       plane.constant = -lvl.elevation;
       setNdc(x, y);
       if (!raycaster.ray.intersectPlane(plane, hit)) return false;
-      drag = { id, pointerId, offX: hit.x - p.x, offZ: hit.z - p.z, moved: false, startX: x, startY: y, orig: { ...p } };
+      const it = st.items.find((i) => i.id === p.itemId);
+      const visible = visiblePlacements(st);
+      const riders = it
+        ? visible.filter((q) => {
+            const qi = st.items.find((i) => i.id === q.itemId);
+            return !!qi && isOnTop(q, qi, p, it);
+          })
+        : [];
+      drag = {
+        id,
+        pointerId,
+        offX: hit.x - p.x,
+        offZ: hit.z - p.z,
+        moved: false,
+        startX: x,
+        startY: y,
+        orig: { ...p },
+        resting: !!it && isResting(lvl, p, it, visible, st.items),
+        riders: riders.map((q) => ({ ...q })),
+      };
       try {
         el.setPointerCapture(pointerId);
       } catch {
@@ -349,7 +382,17 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
         z = sn.z;
         rot = sn.rot;
       }
-      st.patchPlacementLocal(drag.id, { x, z, rotation: rot });
+      // automatisch neerzetten: op de tafel/kast eronder, anders op de vloer (Alt = niet)
+      let y = p.y ?? 0;
+      if (drag.resting && !e.altKey) {
+        const others = visiblePlacements(st).filter((q) => q.id !== drag!.id && !drag!.riders.some((r) => r.id === q.id));
+        y = findSupport(lvl, { x, z, rotation: rot }, it, drag.id, others, st.items).y;
+      }
+      st.patchPlacementLocal(drag.id, { x, z, rotation: rot, y });
+      const dx = x - drag.orig.x;
+      const dz = z - drag.orig.z;
+      const dy = y - (drag.orig.y ?? 0);
+      for (const r of drag.riders) st.patchPlacementLocal(r.id, { x: r.x + dx, z: r.z + dz, y: (r.y ?? 0) + dy });
     };
 
     const onUp = (e: PointerEvent) => {
@@ -375,10 +418,18 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
         if (d.moved) {
           const p = st.placements.find((x) => x.id === d.id);
           if (p)
-            attempt(() => api.updatePlacement(p.id, { x: p.x, z: p.z, rotation: p.rotation })).then((res) => {
+            attempt(() => api.updatePlacement(p.id, { x: p.x, z: p.z, rotation: p.rotation, y: p.y ?? 0 })).then((res) => {
               if (res) useApp.getState().upsertPlacement(res);
               else useApp.getState().upsertPlacement(d.orig);
             });
+          for (const r of d.riders) {
+            const q = st.placements.find((x) => x.id === r.id);
+            if (q)
+              attempt(() => api.updatePlacement(q.id, { x: q.x, z: q.z, y: q.y ?? 0 })).then((res) => {
+                if (res) useApp.getState().upsertPlacement(res);
+                else useApp.getState().upsertPlacement(r);
+              });
+          }
         }
         return;
       }

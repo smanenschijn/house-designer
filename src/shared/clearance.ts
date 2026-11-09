@@ -1,6 +1,6 @@
 import type { House, Level, V2 } from './house';
 import type { Item, Placement } from './recipe';
-import { axes, corners, rectsOverlap, roomAt, wallRects } from './placement';
+import { axes, corners, pointInPolygon, rectsOverlap, roomAt, wallRects } from './placement';
 
 /**
  * Loopruimte rond een meubel: per zijkant de vrije afstand tot de dichtstbijzijnde muur,
@@ -80,6 +80,8 @@ export function clearance(house: House, placement: Placement, placements: Placem
   if (item.recipe.size.height <= 0.03 || bottom >= WALK_HEIGHT) return { gaps: [], doors: [] };
 
   const obstacles = obstaclesFor(level, placement, placements, items);
+  // staat het op iets anders (plant op de tafel)? dan gaat loopruimte over dat meubel, niet hierover
+  if (bottom > 0.02 && obstacles.some((o) => o.name !== 'muur' && pointInPolygon([placement.x, placement.z], o.poly))) return { gaps: [], doors: [] };
   const { ax, az } = axes(placement.rotation);
   const hw = item.recipe.size.width / 2;
   const hd = item.recipe.size.depth / 2;

@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkRecipe, describeHouse, findCollisions, findRoom, roomCenter, roomOf } from '../shared/analysis';
 import { clearance, clearanceWarnings } from '../shared/clearance';
+import { findSupport, isOnTop, isResting } from '../shared/stacking';
 import { snapToWalls } from '../shared/placement';
 import { CATEGORIES, FINISHES, RecipeSchema, STATUSES, type Item, type Recipe } from '../shared/recipe';
 import { TEMPLATES, TEMPLATE_MAP, buildFromTemplate } from '../shared/templates';
@@ -127,6 +128,12 @@ function placementInfo(pid: string) {
     x: Math.round(p.x * 100) / 100,
     z: Math.round(p.z * 100) / 100,
     rotation: Math.round(p.rotation),
+    height_above_floor_cm: Math.round((p.y ?? 0) * 100),
+    standing_on: (() => {
+      if (!it || (p.y ?? 0) < 0.005) return 'vloer';
+      const s = findSupport(level, p, it, p.id, visible(), all);
+      return Math.abs(s.y - (p.y ?? 0)) < 0.02 && s.on ? s.on : 'zwevend (eigen hoogte)';
+    })(),
     variant: variant ? `${variant.name}${isPlacementVisible(p.variantId, listVariants(), activeMap()) ? '' : ' (niet actief)'}` : 'buiten',
     collisions: collisions.length ? collisions : 'geen',
     // vrije ruimte per zijkant (voor/achter/links/rechts van het meubel zelf) en waarschuwingen
@@ -352,7 +359,8 @@ export function buildMcpServer(user: PublicUser) {
       description:
         'Plaatst een meubel uit de bibliotheek in het huis. Geef een kamer (dan midden in de kamer, tenzij x/z gegeven) of exacte coördinaten x/z in meters (zie get_house). ' +
         'rotation in graden: 0 = voorkant naar +z (straatkant), 90 = naar +x (zuid/buren), 180 = naar -z (tuin), 270 = naar -x (noord). ' +
-        'Met snap_to_wall (standaard aan) schuift het meubel strak tegen een muur als het daar binnen 25 cm van staat. Je krijgt botsingen terug, de vrije ruimte per zijkant en waarschuwingen (voor een deur, doorgang < 60 cm; advies ≥ 70 cm).',
+        'Met snap_to_wall (standaard aan) schuift het meubel strak tegen een muur als het daar binnen 25 cm van staat. Je krijgt botsingen terug, de vrije ruimte per zijkant en waarschuwingen (voor een deur, doorgang < 60 cm; advies ≥ 70 cm). ' +
+        'Hoogte gaat automatisch: kleine dingen (plant, lamp, decoratie, apparaat) die helemaal op een tafel, kast of vaste inbouw passen, komen daarop te staan; anders op de vloer. Banken, stoelen, bedden, tafels en vloerkleden staan altijd op de vloer. Met height_m zet je zelf een hoogte (bijv. iets aan de muur).',
       inputSchema: {
         item_id: z.string(),
         room: z.string().optional().describe('kamernaam of id, bijv. "woonkamer"'),
@@ -361,9 +369,10 @@ export function buildMcpServer(user: PublicUser) {
         z: z.number().optional(),
         rotation: z.number().optional(),
         snap_to_wall: z.boolean().optional(),
+        height_m: z.number().min(0).max(3).optional().describe('hoogte boven de vloer; leeg = automatisch (op tafel/kast als het past)'),
       },
     },
-    async ({ item_id, room, level, x, z: zz, rotation, snap_to_wall }) => {
+    async ({ item_id, room, level, x, z: zz, rotation, snap_to_wall, height_m }) => {
       const it = getItem(item_id);
       if (!it) return fail('Meubel niet gevonden.');
       let lv = resolveLevel(level);
@@ -384,8 +393,9 @@ export function buildMcpServer(user: PublicUser) {
         pz = s.z;
         rot = s.rot;
       }
+      const y = height_m ?? findSupport(lv, { x: px, z: pz, rotation: rot }, it, null, visible(), listItems()).y;
       actor(`“${it.name}” geplaatst`);
-      const p = createPlacement({ itemId: it.id, levelId: lv.id, x: px, z: pz, rotation: rot }, user.id);
+      const p = createPlacement({ itemId: it.id, levelId: lv.id, x: px, z: pz, rotation: rot, y }, user.id);
       return json(placementInfo(p.id));
     },
   );
@@ -394,7 +404,9 @@ export function buildMcpServer(user: PublicUser) {
     'move_furniture',
     {
       title: 'Meubel verplaatsen/draaien',
-      description: 'Verplaatst of draait een geplaatst meubel (placement_id uit list_placed_furniture of place_furniture). Alleen opgegeven velden veranderen.',
+      description:
+        'Verplaatst of draait een geplaatst meubel (placement_id uit list_placed_furniture of place_furniture). Alleen opgegeven velden veranderen. ' +
+        'Stond het op de vloer of op iets, dan komt het automatisch op wat er op de nieuwe plek onder staat. Wat erop staat (plant op de tafel) verhuist mee. height_m zet een eigen hoogte.',
       inputSchema: {
         placement_id: z.string(),
         x: z.number().optional(),
@@ -402,9 +414,10 @@ export function buildMcpServer(user: PublicUser) {
         rotation: z.number().optional(),
         level: z.string().optional(),
         snap_to_wall: z.boolean().optional(),
+        height_m: z.number().min(0).max(3).optional().describe('hoogte boven de vloer; leeg = automatisch'),
       },
     },
-    async ({ placement_id, x, z: zz, rotation, level, snap_to_wall }) => {
+    async ({ placement_id, x, z: zz, rotation, level, snap_to_wall, height_m }) => {
       const p = getPlacement(placement_id);
       if (!p) return fail('Plaatsing niet gevonden.');
       const it = getItem(p.itemId)!;
@@ -418,8 +431,21 @@ export function buildMcpServer(user: PublicUser) {
         nz = s.z;
         rot = s.rot;
       }
+      const all = listItems();
+      const vis = visible();
+      const oldLevel = house.levels.find((l) => l.id === p.levelId)!;
+      // wat erop staat verhuist mee (zelfde verschuiving)
+      const riders = vis.filter((q) => {
+        const qi = all.find((i) => i.id === q.itemId);
+        return !!qi && isOnTop(q, qi, p, it);
+      });
+      const others = vis.filter((q) => !riders.some((r) => r.id === q.id));
+      const y =
+        height_m ??
+        (isResting(oldLevel, p, it, vis, all) ? findSupport(lv, { x: nx, z: nz, rotation: rot }, it, p.id, others, all).y : (p.y ?? 0));
       actor(`“${it.name}” verplaatst`);
-      updatePlacement(placement_id, { x: nx, z: nz, rotation: rot, levelId: lv.id });
+      updatePlacement(placement_id, { x: nx, z: nz, rotation: rot, levelId: lv.id, y });
+      for (const r of riders) updatePlacement(r.id, { x: r.x + (nx - p.x), z: r.z + (nz - p.z), y: (r.y ?? 0) + (y - (p.y ?? 0)), levelId: lv.id });
       return json(placementInfo(placement_id));
     },
   );

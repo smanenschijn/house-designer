@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import type { House } from '../../shared/house';
 import { roomAt } from '../../shared/placement';
 import { clearance, clearanceWarnings } from '../../shared/clearance';
+import { findSupport } from '../../shared/stacking';
 import { visiblePlacements } from '../store';
 import { useApp } from '../store';
 import { keyState } from '../keyState';
@@ -22,6 +23,14 @@ export function SelectionBar({ house }: { house: House }) {
     if (!placement) return [];
     return clearanceWarnings(clearance(house, placement, visiblePlacements({ placements, variants, active }), items));
   }, [house, placement, placements, variants, active, items]);
+  // waar staat het op? (alleen tonen als het niet op de vloer staat)
+  const standingOn = useMemo(() => {
+    if (!placement || !item || (placement.y ?? 0) < 0.005) return null;
+    const lv = house.levels.find((l) => l.id === placement.levelId);
+    if (!lv) return null;
+    const s = findSupport(lv, placement, item, placement.id, visiblePlacements({ placements, variants, active }), items);
+    return Math.abs(s.y - (placement.y ?? 0)) < 0.02 && s.on ? `staat op ${s.on}` : `${Math.round((placement.y ?? 0) * 100)} cm boven de vloer`;
+  }, [house, placement, item, placements, variants, active, items]);
   const setSnap = useApp((s) => s.setSnap);
 
   useEffect(() => {
@@ -89,7 +98,8 @@ export function SelectionBar({ house }: { house: House }) {
         <strong>{item.name}</strong>
         <span className="muted">
           {fmtSize(item)}
-          {room ? ` · ${room.name}` : ''} · {Math.round(placement.rotation)}°
+          {room ? ` · ${room.name}` : ''}
+          {standingOn ? ` · ${standingOn}` : ''} · {Math.round(placement.rotation)}°
         </span>
         {warnings.map((w) => (
           <span key={w} className="sel-warn">
