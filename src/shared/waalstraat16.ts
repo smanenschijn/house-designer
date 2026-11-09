@@ -130,6 +130,23 @@ const wastafelmeubel = fixedRecipe(1.38, 0.4, 0.88, { hout: M.hout, k: M.keramie
   box('spiegel', [1.2, 0.8, 0.02], [0, 1.55, -0.19]),
 ]);
 
+/** inbouwspot in het plafond (wit randje, lichtgevende binnenkant) */
+const spot = fixedRecipe(0.09, 0.09, 0.008, { rand: M.witMat, licht: { color: '#fff4e2', finish: 'light' } }, [
+  { shape: 'cylinder', material: 'rand', radius: 0.045, height: 0.006, position: [0, 0.005, 0], segments: 24 },
+  { shape: 'cylinder', material: 'licht', radius: 0.032, height: 0.004, position: [0, 0.0015, 0], segments: 24 },
+]);
+/** spots begane grond, ca. 50 cm uit de muren zoals op de brochurefoto's (posities benaderd) */
+const SPOTS_BG: [string, number, number][] = [
+  // woonkamer: langs de bankwand, de voorgevel en de schouwwand
+  ['wk', 0.5, 8.35], ['wk', 0.5, 9.65], ['wk', 0.5, 10.95],
+  ['wk', 2.0, 10.95], ['wk', 3.5, 10.95], ['wk', 5.0, 10.95],
+  ['wk', 5.0, 9.65], ['wk', 5.0, 8.35], ['wk', 5.0, 7.05], ['wk', 5.0, 5.75],
+  ['wk', 3.1, 5.75], ['wk', 3.1, 7.05],
+  // keuken en eethoek: naast de koof en langs de zijwanden
+  ['kk', 0.5, 1.25], ['kk', 0.5, 3.75], ['kk', 2.95, 1.25], ['kk', 2.95, 3.75],
+  ['kk', 5.0, 0.8], ['kk', 5.0, 2.4], ['kk', 5.0, 4.0],
+];
+
 const koker = (w: number, d: number, h: number) => fixedRecipe(w, d, h, { wit: M.witMat }, [box('wit', [w, h, d], [0, h / 2, 0])]);
 
 const airco = fixedRecipe(0.8, 0.22, 0.3, { wit: M.wit }, [box('wit', [0.8, 0.3, 0.22], [0, 0.15, 0], 0.04)]);
@@ -300,6 +317,7 @@ const bg: Level = {
     fx('schiereiland', 'Schiereiland met inductie en spoelbak', schiereiland, 0.955, 2.56),
     fx('koof', 'Verlaagd plafond met afzuiging', koof, 1.3, 2.55, 0, CEILING - 0.3, true),
     fx('airco-bg', 'Airco', airco, 0.11, 4.45, 90, 2.15, true),
+    ...SPOTS_BG.map(([room, x, z], i) => fx(`spot-${room}-${i + 1}`, 'Inbouwspot', spot, x, z, 0, CEILING - 0.008, true)),
     // blijven achter / overgenomen (zie lijst van zaken)
     fx('koelkast', 'Amerikaanse koelkast', amerikaanseKoelkast, 0.485, 4.48, 180),
     fx('lowboard', 'Zwevende lowboard', zwevend(3.9, 0.4, 0.4, 6), W - 0.2, 9.35, -90, 0.25),
@@ -520,6 +538,7 @@ export const waalstraat16: House = {
   assumptions: [
     'Plafondhoogte 2,60 m, verdiepingshoogte 2,80 m (standaardmaat).',
     'Binnendeuren 83 × 211,5 cm, voordeur 90 × 230 cm.',
+    'Inbouwspots begane grond (woonkamer en keuken/eethoek): ca. 50 cm uit de muren, onderlinge afstand ca. 1,3–1,5 m; aantal en posities benaderd uit de brochurefoto’s.',
     'Dakhelling ca. 34° afgeleid uit de 1,50 m-lijn op de zolderplattegrond; nok ± 3,0 m boven zoldervloer.',
     'Vensterbanken en raamhoogtes geschat op basis van de foto’s.',
     'Tuin nagebouwd naar de foto’s in de brochure; ligging van overkapping, borders en beplanting is indicatief. Losse tuinmeubels en speeltoestellen van de verkopers zijn weggelaten.',

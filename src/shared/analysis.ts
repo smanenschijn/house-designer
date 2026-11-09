@@ -232,12 +232,15 @@ export function describeHouse(house: House) {
             openings,
           };
         }),
-      fixtures: level.fixtures.map((f) => ({
-        name: f.name,
-        position: [r2(f.position[0]), r2(f.position[1])],
-        size_cm: [Math.round(f.recipe.size.width * 100), Math.round(f.recipe.size.depth * 100), Math.round(f.recipe.size.height * 100)],
-        rotation: f.rotation ?? 0,
-      })),
+      fixtures: level.fixtures
+        .filter((f) => f.name !== 'Inbouwspot')
+        .map((f) => ({
+          name: f.name,
+          position: [r2(f.position[0]), r2(f.position[1])],
+          size_cm: [Math.round(f.recipe.size.width * 100), Math.round(f.recipe.size.depth * 100), Math.round(f.recipe.size.height * 100)],
+          rotation: f.rotation ?? 0,
+        })),
+      ceiling_spots: level.fixtures.filter((f) => f.name === 'Inbouwspot').map((f) => [r2(f.position[0]), r2(f.position[1])]),
     })),
     assumptions: house.assumptions,
   };

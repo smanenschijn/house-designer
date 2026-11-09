@@ -157,6 +157,15 @@ export function floorplanSvg(house: House, levelIndex: number, placements: Place
 
   // vaste inbouw (hoog = gestippeld)
   for (const fx of level.fixtures) {
+    if (fx.name === 'Inbouwspot') {
+      // plafondspot: rondje met kruis (zoals op een installatietekening)
+      const [x, z] = fx.position;
+      const r = 7 * k;
+      parts.push(
+        `<g stroke="#8a8780" stroke-width="0.8" fill="none"><circle cx="${r1(x * 100)}" cy="${r1(z * 100)}" r="${r1(r)}"/><line x1="${r1(x * 100 - r)}" y1="${r1(z * 100)}" x2="${r1(x * 100 + r)}" y2="${r1(z * 100)}"/><line x1="${r1(x * 100)}" y1="${r1(z * 100 - r)}" x2="${r1(x * 100)}" y2="${r1(z * 100 + r)}"/></g>`,
+      );
+      continue;
+    }
     const c = corners({ x: fx.position[0], z: fx.position[1], hw: fx.recipe.size.width / 2, hd: fx.recipe.size.depth / 2, rot: fx.rotation ?? 0 });
     const high = (fx.y ?? 0) > 1.2;
     parts.push(poly(c, `fill="${high ? 'none' : '#e9e7e2'}" stroke="#8a8780" stroke-width="0.8"${high ? ' stroke-dasharray="5 4"' : ''}`));
