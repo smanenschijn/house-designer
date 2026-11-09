@@ -23,6 +23,8 @@ const KNEE = 0.2; // hoogte dakvlak boven zoldervloer bij binnenkant gevel (aann
 const SLOPE = 0.684; // tan(34,4°): 1,50 m-lijn ligt 1,92 m uit de gevel
 const RIDGE_Z = (Z_OLD_BACK + Z_FRONT) / 2;
 const ROOF_T = 0.36; // dakpakket (verticaal gemeten)
+/** vloer onder de L-vormige overkapping achterin de tuin */
+const OVERKAPPING: V2[] = [[0.34, -13.4], [5.81, -13.4], [5.81, -7.03], [2.65, -7.03], [2.65, -10.1], [0.34, -10.1]];
 
 /** onderkant dakvlak (absolute hoogte) als functie van z */
 export function roofUnderside(z: number): number {
@@ -164,6 +166,62 @@ const tuinberging = fixedRecipe(2.52, 1.96, 2.3, { hout: M.houtDonker, deur: { c
   box('hout', [2.52, 2.3, 1.96], [0, 1.15, 0]),
   box('deur', [0.85, 2.0, 0.02], [-0.6, 1.0, 0.99]),
 ]);
+
+/** houten kapconstructie onder een plat dak (balken, gordingen, schoren, boeideel), absolute maten */
+function kapconstructie(id: string, x0: number, x1: number, z0: number, z1: number, posts: V2[], top = 2.5): Fixture {
+  const w = x1 - x0;
+  const d = z1 - z0;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const parts: Part[] = [];
+  // randbalken
+  parts.push(box('hout', [w - 0.06, 0.2, 0.08], [0, top - 0.12, -d / 2 + 0.07]));
+  parts.push(box('hout', [w - 0.06, 0.2, 0.08], [0, top - 0.12, d / 2 - 0.07]));
+  parts.push(box('hout', [0.08, 0.2, d - 0.06], [-w / 2 + 0.07, top - 0.12, 0]));
+  parts.push(box('hout', [0.08, 0.2, d - 0.06], [w / 2 - 0.07, top - 0.12, 0]));
+  // gordingen om de 60 cm
+  const n = Math.max(2, Math.round(w / 0.6));
+  for (let i = 1; i < n; i++) parts.push(box('hout', [0.06, 0.14, d - 0.1], [-w / 2 + (i * w) / n, top - 0.07, 0]));
+  // boeideel rondom met afdekprofiel
+  const bt = 0.03;
+  const bh = 0.3;
+  const by = top + 0.08;
+  parts.push(box('boei', [w + 2 * bt, bh, bt], [0, by, -d / 2 - bt / 2]));
+  parts.push(box('boei', [w + 2 * bt, bh, bt], [0, by, d / 2 + bt / 2]));
+  parts.push(box('boei', [bt, bh, d], [-w / 2 - bt / 2, by, 0]));
+  parts.push(box('boei', [bt, bh, d], [w / 2 + bt / 2, by, 0]));
+  parts.push(box('kap', [w + 0.1, 0.03, 0.06], [0, by + bh / 2 + 0.015, -d / 2 - 0.01]));
+  parts.push(box('kap', [w + 0.1, 0.03, 0.06], [0, by + bh / 2 + 0.015, d / 2 + 0.01]));
+  parts.push(box('kap', [0.06, 0.03, d + 0.1], [-w / 2 - 0.01, by + bh / 2 + 0.015, 0]));
+  parts.push(box('kap', [0.06, 0.03, d + 0.1], [w / 2 + 0.01, by + bh / 2 + 0.015, 0]));
+  // schoren vanaf elke paal naar binnen (x- en z-richting)
+  for (const [px, pz] of posts) {
+    const lx = px - cx;
+    const lz = pz - cz;
+    const sx = lx < 0 ? 1 : -1;
+    const sz = lz < 0 ? 1 : -1;
+    parts.push({ shape: 'box', material: 'hout', size: [0.62, 0.07, 0.07], position: [lx + sx * 0.25, top - 0.42, lz], rotation: [0, 0, sx * 45] });
+    parts.push({ shape: 'box', material: 'hout', size: [0.07, 0.07, 0.62], position: [lx, top - 0.42, lz + sz * 0.25], rotation: [-sz * 45, 0, 0] });
+  }
+  const recipe = fixedRecipe(w, d, top + 0.3, { hout: { color: '#b08458', finish: 'wood' }, boei: { color: '#c09466', finish: 'wood' }, kap: { color: '#8d8f91', finish: 'metal' } }, parts);
+  return { id, name: 'Kapconstructie overkapping', recipe, position: [cx, cz], rotation: 0, y: 0 };
+}
+
+/** boeideel rondom een plat dak (carport) */
+function boeideel(x0: number, x1: number, z0: number, z1: number, y: number): Recipe {
+  const w = x1 - x0;
+  const d = z1 - z0;
+  const t = 0.03;
+  const h = 0.28;
+  const yy = y + 0.1;
+  return fixedRecipe(w, d, y + 0.3, { boei: { color: '#a98058', finish: 'wood' } }, [
+    box('boei', [w + 2 * t, h, t], [0, yy, -d / 2 - t / 2]),
+    box('boei', [w + 2 * t, h, t], [0, yy, d / 2 + t / 2]),
+    box('boei', [t, h, d], [-w / 2 - t / 2, yy, 0]),
+    box('boei', [w - 0.1, 0.2, 0.08], [0, y - 0.1, d / 2 - 0.05]),
+    box('boei', [w - 0.1, 0.2, 0.08], [0, y - 0.1, -d / 2 + 0.05]),
+  ]);
+}
 
 const fx = (id: string, name: string, recipe: Recipe, x: number, z: number, rotation = 0, y = 0, high = false): Fixture => ({
   id,
@@ -390,29 +448,72 @@ export const waalstraat16: House = {
   outdoor: {
     bounds: { x0: -12, x1: 14, z0: -20, z1: 24 },
     areas: [
-      { id: 'tuin', name: 'Tuin', floor: 'tuintegels', label: [1.5, -6], polygon: [[-4.4, -13.4], [5.81, -13.4], [5.81, -0.28], [-4.4, -0.28]] },
-      { id: 'gras', name: 'Gras', floor: 'gras', polygon: [[-4.4, -13.4], [0.3, -13.4], [0.3, -9.2], [-4.4, -9.2]] },
-      { id: 'pad', name: 'Achterom', floor: 'tuintegels', polygon: [[-4.4, -0.28], [-0.28, -0.28], [-0.28, 3.46], [-4.4, 3.46]] },
+      { id: 'tuin', name: 'Tuin', floor: 'terrastegels', label: [1.5, -5], polygon: [[-4.4, -13.4], [5.81, -13.4], [5.81, -0.28], [-4.4, -0.28]] },
+      { id: 'overkapping', name: 'Overkapping', floor: 'tegels-donker', label: [1.6, -11.8], polygon: OVERKAPPING },
+      { id: 'gras', name: 'Kunstgras', floor: 'kunstgras', polygon: [[-4.4, -11.3], [0.34, -11.3], [0.34, -8.7], [-4.4, -8.7]] },
+      { id: 'gras-muur', name: 'Kunstgras langs muur', floor: 'kunstgras', polygon: [[5.35, -6.2], [5.81, -6.2], [5.81, -3.45], [5.35, -3.45]] },
+      { id: 'pad', name: 'Achterom', floor: 'terrastegels', polygon: [[-4.4, -0.28], [-0.28, -0.28], [-0.28, 3.46], [-4.4, 3.46]] },
       { id: 'oprit', name: 'Carport & oprit', floor: 'asfalt', label: [-2.3, 6.3], polygon: [[-4.4, 3.46], [-0.28, 3.46], [-0.28, 16.8], [-4.4, 16.8]] },
-      { id: 'voortuin', name: 'Voortuin', floor: 'grind', label: [2.7, 14.3], polygon: [[-0.28, 11.78], [5.81, 11.78], [5.81, 16.8], [-0.28, 16.8]] },
+      { id: 'voortuin', name: 'Voortuin', floor: 'tuintegels', label: [2.7, 15.9], polygon: [[-0.28, 11.78], [5.81, 11.78], [5.81, 16.8], [-0.28, 16.8]] },
       { id: 'straat', name: 'Waalstraat', floor: 'klinkers', label: [0.7, 20], polygon: [[-12, 16.8], [14, 16.8], [14, 24], [-12, 24]] },
     ],
     fences: [
       { a: [-4.4, -13.4], b: [5.81, -13.4], height: 1.8 },
       { a: [-4.4, -13.4], b: [-4.4, 3.4], height: 1.8 },
-      { a: [5.81, -13.4], b: [5.81, -3.45], height: 1.8 },
+      { a: [5.81, -13.4], b: [5.81, -7.03], height: 1.8 },
+      // gemetselde muur van de buren (nr. 14) langs de zuidkant van het terras
+      { a: [5.81, -7.03], b: [5.81, -3.45], height: 2.4, style: 'muur' },
       { a: [-4.4, 3.4], b: [-1.3, 3.4], height: 1.8 },
+      // lage schutting langs de oprit
+      { a: [-4.4, 3.4], b: [-4.4, 15.9], height: 1.3 },
+    ],
+    raised: [
+      // achtertuin: borders van grijze stapelblokken
+      { id: 'border-achter', polygon: [[-4.32, -13.32], [0.22, -13.32], [0.22, -11.3], [-4.32, -11.3]], height: 0.45, edge: 'stapelblok', top: 'aarde' },
+      { id: 'border-esdoorn', polygon: [[0.5, -9.95], [2.52, -9.95], [2.52, -8.7], [0.5, -8.7]], height: 0.45, edge: 'stapelblok', top: 'aarde' },
+      { id: 'border-overkapping', polygon: [[2.9, -6.98], [5.78, -6.98], [5.78, -6.2], [2.9, -6.2]], height: 0.45, edge: 'stapelblok', top: 'aarde' },
+      // voortuin: lage border met antraciet split
+      { id: 'border-voor', polygon: [[0.1, 12.05], [5.78, 12.05], [5.78, 15.5], [0.1, 15.5]], height: 0.25, edge: 'stapelblok', top: 'split' },
+      // voortuin buren (nr. 14), voor de beleving van de straat
+      { id: 'border-voor-14', polygon: [[5.9, 12.05], [11.4, 12.05], [11.4, 15.5], [5.9, 15.5]], height: 0.25, edge: 'stapelblok', top: 'split' },
+    ],
+    plants: [
+      // achtertuin
+      { kind: 'esdoorn', position: [-1.7, -12.3], y: 0.45, height: 1.9, spread: 2.5, seed: 3 },
+      { kind: 'bol', position: [-3.75, -12.75], y: 0.45, height: 1.0, spread: 1.0 },
+      { kind: 'struik', position: [-0.45, -11.75], y: 0.45, height: 0.45, spread: 0.7 },
+      { kind: 'esdoorn', position: [1.5, -9.3], y: 0.45, height: 1.8, spread: 2.2, seed: 8 },
+      { kind: 'struik', position: [0.85, -8.95], y: 0.45, height: 0.35, spread: 0.6 },
+      { kind: 'struik', position: [2.2, -9.65], y: 0.45, height: 0.35, spread: 0.55 },
+      { kind: 'bol', position: [3.7, -6.6], y: 0.45, height: 1.05, spread: 1.05 },
+      { kind: 'bol', position: [5.15, -6.6], y: 0.45, height: 1.6, spread: 1.25 },
+      // voortuin
+      { kind: 'bolboom', position: [2.9, 14.2], y: 0.25, height: 3.7, spread: 2.1, seed: 5 },
+      { kind: 'bol', position: [0.75, 12.65], y: 0.25, height: 0.7, spread: 0.75 },
+      { kind: 'siergras', position: [1.7, 12.55], y: 0.25, height: 0.7, spread: 0.6 },
+      { kind: 'struik', position: [4.4, 12.6], y: 0.25, height: 0.6, spread: 0.8 },
+      { kind: 'siergras', position: [5.25, 12.6], y: 0.25, height: 0.65, spread: 0.6 },
+      { kind: 'siergras', position: [0.75, 14.9], y: 0.25, height: 0.5, spread: 0.5 },
+      { kind: 'bolboom', position: [8.6, 14.0], y: 0.25, height: 3.6, spread: 2.0, seed: 9 },
+      { kind: 'struik', position: [10.6, 12.7], y: 0.25, height: 0.9, spread: 1.0 },
+      // omgeving
+      { kind: 'boom', position: [-11.5, -19], height: 11, spread: 7, seed: 1 },
+      { kind: 'boom', position: [12, -19], height: 9, spread: 6, seed: 2 },
+      { kind: 'treurwilg', position: [14.5, -4], height: 10, spread: 8, seed: 4 },
     ],
     fixtures: [
       fx('carport-p1', 'Carportpaal', paal(2.45), -4.1, 3.55),
       fx('carport-p2', 'Carportpaal', paal(2.45), -4.1, 6.4),
       fx('carport-p3', 'Carportpaal', paal(2.45), -4.1, 9.2),
+      fx('carport-boei', 'Boeideel carport', boeideel(-4.25, -0.28, 3.4, 9.3, 2.45), -2.265, 6.35),
       fx('overkapping-p1', 'Paal overkapping', paal(2.5), 0.41, -13.33),
       fx('overkapping-p2', 'Paal overkapping', paal(2.5), 0.41, -10.17),
       fx('overkapping-p3', 'Paal overkapping', paal(2.5), 2.72, -10.17),
       fx('overkapping-p4', 'Paal overkapping', paal(2.5), 3.36, -7.1),
       fx('overkapping-p5', 'Paal overkapping', paal(2.5), 5.74, -7.1),
       fx('overkapping-p6', 'Paal overkapping', paal(2.5), 5.74, -10.17),
+      kapconstructie('overkapping-a', 0.34, 5.81, -13.4, -10.1, [[0.41, -13.33], [0.41, -10.17], [2.72, -10.17]]),
+      kapconstructie('overkapping-b', 2.65, 5.81, -10.1, -7.03, [[3.36, -7.1], [5.74, -7.1], [5.74, -10.17]]),
       fx('tuinberging', 'Houten berging', tuinberging, 4.55, -12.42),
     ],
   },
@@ -421,7 +522,7 @@ export const waalstraat16: House = {
     'Binnendeuren 83 × 211,5 cm, voordeur 90 × 230 cm.',
     'Dakhelling ca. 34° afgeleid uit de 1,50 m-lijn op de zolderplattegrond; nok ± 3,0 m boven zoldervloer.',
     'Vensterbanken en raamhoogtes geschat op basis van de foto’s.',
-    'Ligging overkapping en tuinberging in de tuin is indicatief.',
+    'Tuin nagebouwd naar de foto’s in de brochure; ligging van overkapping, borders en beplanting is indicatief. Losse tuinmeubels en speeltoestellen van de verkopers zijn weggelaten.',
     'Buurpand (nr. 14) is als gespiegelde massa zonder uitbouw toegevoegd, alleen voor schaduw en context.',
     'Losse meubels van de verkopers zijn weggelaten. Zwevend tv-meubel, lowboard met sierhaard en de Amerikaanse koelkast blijven en staan vast in het huis (maten deels geschat uit foto’s).',
   ],

@@ -57,6 +57,20 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function upload<T>(url: string, file: File): Promise<T> {
+  const res = await fetch(url, { method: 'POST', body: file, headers: { 'content-type': 'model/gltf-binary' }, credentials: 'same-origin' });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      msg = (await res.json()).error ?? msg;
+    } catch {
+      /* geen json */
+    }
+    throw new ApiError(res.status, msg);
+  }
+  return res.json() as Promise<T>;
+}
+
 export interface StateSnapshot {
   items: Item[];
   placements: Placement[];
@@ -91,6 +105,10 @@ export const api = {
   createItem: (input: ItemInput) => req<Item>('POST', '/api/items', input),
   updateItem: (id: string, input: Partial<ItemInput>) => req<Item>('PUT', `/api/items/${id}`, input),
   deleteItem: (id: string) => req<void>('DELETE', `/api/items/${id}`),
+  uploadModel: (file: File, name: string, category: string) =>
+    upload<Item>(`/api/models?name=${encodeURIComponent(name)}&category=${encodeURIComponent(category)}`, file),
+  replaceModel: (id: string, file: File) => upload<Item>(`/api/items/${id}/model`, file),
+  modelSettings: (id: string, s: { scale?: number; rotation?: number }) => req<Item>('PUT', `/api/items/${id}/model`, s),
   createPlacement: (input: PlacementInput) => req<Placement>('POST', '/api/placements', input),
   updatePlacement: (id: string, input: Partial<PlacementInput>) => req<Placement>('PUT', `/api/placements/${id}`, input),
   deletePlacement: (id: string) => req<void>('DELETE', `/api/placements/${id}`),

@@ -180,7 +180,49 @@ const FLOOR_DEFS: Record<FloorMaterial, () => { map: THREE.Texture; size: number
   asfalt: () => ({ map: noise('asfalt', '#4d4f52', 0.12), size: 2, roughness: 0.95 }),
   klinkers: () => ({ map: tiles('klinkers', '#9b6a55', '#7c5546', 10, 0.12, true), size: 2.1, roughness: 0.95 }),
   grind: () => ({ map: noise('grind', '#9c978f', 0.25, 256, 2), size: 1.5, roughness: 1 }),
+  terrastegels: () => ({ map: slabs('terrastegels', '#8e8b87', '#6c6966', 2), size: 2, roughness: 0.9 }),
+  kunstgras: () => ({ map: noise('kunstgras', '#4b7531', 0.28, 256, 1), size: 0.8, roughness: 0.85 }),
+  split: () => ({ map: noise('split', '#3e4043', 0.45, 256, 3), size: 0.8, roughness: 0.9 }),
+  aarde: () => ({ map: noise('aarde', '#4b3a2c', 0.35, 256, 3), size: 1, roughness: 1 }),
 };
+
+/** grote betontegels met vlekkerige structuur (zoals in de achtertuin) */
+function slabs(key: string, base: string, grout: string, n: number): THREE.Texture {
+  return canvasTexture(key, 1024, (ctx, s) => {
+    const r = rng(13);
+    ctx.fillStyle = grout;
+    ctx.fillRect(0, 0, s, s);
+    const t = s / n;
+    const c0 = new THREE.Color(base);
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++) {
+        const c = c0.clone().multiplyScalar(0.92 + r() * 0.14);
+        ctx.fillStyle = `#${c.getHexString()}`;
+        ctx.fillRect(i * t + 3, j * t + 3, t - 6, t - 6);
+        // wolkjes en korrel
+        for (let k = 0; k < 26; k++) {
+          const cx = i * t + 3 + r() * (t - 6);
+          const cy = j * t + 3 + r() * (t - 6);
+          const rad = 20 + r() * 90;
+          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+          const dark = r() > 0.5;
+          g.addColorStop(0, `rgba(${dark ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.05})`);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(i * t + 3, j * t + 3, t - 6, t - 6);
+          ctx.clip();
+          ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+          ctx.restore();
+        }
+        for (let k = 0; k < 2500; k++) {
+          ctx.fillStyle = `rgba(${r() > 0.5 ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.07})`;
+          ctx.fillRect(i * t + 3 + r() * (t - 6), j * t + 3 + r() * (t - 6), 2, 2);
+        }
+      }
+  });
+}
 
 export function floorMaterial(kind: FloorMaterial): THREE.MeshStandardMaterial {
   const hit = floorCache.get(kind);
@@ -265,7 +307,6 @@ export const HOUSE_COLORS = {
   white: new THREE.Color('#ffffff'),
   frame: '#2e3236',
   roof: '#4a4442',
-  fence: '#7a6048',
 };
 
 /** baksteen (waalformaat 21 × 5 cm, voeg 1 cm), textuur van 0,88 × 0,50 m */
@@ -355,8 +396,87 @@ export const roofMaterial = (() => {
   return m;
 })();
 export const slabEdgeMaterial = new THREE.MeshStandardMaterial({ color: '#d8d3ca', roughness: 0.9 });
-export const fenceMaterial = new THREE.MeshStandardMaterial({ color: HOUSE_COLORS.fence, roughness: 0.9 });
 export const groundMaterial = new THREE.MeshStandardMaterial({ color: '#86a86a', roughness: 1 });
+
+// ---------- tuin ----------
+/** materiaal met textuur in meters (uv = meters), `w` × `h` per herhaling */
+function meterMaterial(make: () => THREE.Texture, w: number, h: number, params: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial(params);
+  if (typeof document !== 'undefined') m.map = wallTex(make(), w, h);
+  return m;
+}
+
+/** stapelblokken 60 × 15 cm, halfsteens verband; textuur van 1,2 × 0,6 m */
+function stapelblokTexture(): THREE.Texture {
+  return canvasTexture('stapelblok', 512, (ctx, S) => {
+    const r = rng(31);
+    ctx.fillStyle = '#4e4d4b';
+    ctx.fillRect(0, 0, S, S);
+    const rows = 4;
+    const bh = S / rows;
+    const bw = S / 2;
+    for (let row = 0; row < rows; row++) {
+      const off = row % 2 ? bw / 2 : 0;
+      for (let c = -1; c <= 2; c++) {
+        const x = c * bw + off;
+        const v = 0.42 + r() * 0.12;
+        const tone = Math.round(255 * v);
+        ctx.fillStyle = `rgb(${tone},${tone - 2},${tone - 5})`;
+        ctx.fillRect(x + 2, row * bh + 2, bw - 4, bh - 4);
+        // gebroken kopse kant: lichte bovenrand, donkere onderrand
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x + 2, row * bh + 2, bw - 4, 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(x + 2, row * bh + bh - 7, bw - 4, 5);
+        for (let k = 0; k < 220; k++) {
+          ctx.fillStyle = `rgba(${r() > 0.5 ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.08})`;
+          ctx.fillRect(x + 2 + r() * (bw - 4), row * bh + 2 + r() * (bh - 4), 2, 2);
+        }
+      }
+    }
+  });
+}
+
+/** verticale schuttingplanken (14 cm), verweerd hout; textuur van 1 × 1 m */
+function fenceTexture(): THREE.Texture {
+  return canvasTexture('schutting', 512, (ctx, S) => {
+    const r = rng(41);
+    const n = 7;
+    const w = S / n;
+    for (let i = 0; i < n; i++) plankFill(ctx, i * w, 0, w, S, [150, 136, 118], r, false);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let i = 0; i < n; i++) ctx.fillRect(i * w, 0, 2, S);
+  });
+}
+
+export const stapelblokMaterial = meterMaterial(stapelblokTexture, 1.2, 0.6, { color: '#ffffff', roughness: 0.95 });
+export const sleeperMaterial = meterMaterial(() => planks('biels', [120, 112, 102], 0.25, 1.0), 2, 1, { color: '#ffffff', roughness: 0.95 });
+export const fencePlankMaterial = meterMaterial(fenceTexture, 1, 1, { color: '#ffffff', roughness: 0.95 });
+export const fencePostMaterial = new THREE.MeshStandardMaterial({ color: '#6f6252', roughness: 0.95 });
+export const gardenBrickMaterial = meterMaterial(brickTexture, 0.88, 0.5, { color: '#ffffff', roughness: 0.95 });
+export const copingMaterial = new THREE.MeshStandardMaterial({ color: '#4f4c49', roughness: 0.8 });
+export const barkMaterial = meterMaterial(() => noise('bast', '#5b4b3d', 0.35, 128, 2), 0.4, 0.4, { color: '#ffffff', roughness: 1 });
+
+/** bladmassa: vertexkleur per tak/bol, korrelige textuur voor een bladachtig oppervlak */
+export const foliageMaterial = (() => {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, color: '#ffffff' });
+  if (typeof document !== 'undefined') {
+    const t = canvasTexture('blad', 256, (ctx, S) => {
+      const r = rng(51);
+      ctx.fillStyle = '#d8d8d8';
+      ctx.fillRect(0, 0, S, S);
+      for (let i = 0; i < 1400; i++) {
+        const v = Math.round(150 + r() * 105);
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.beginPath();
+        ctx.ellipse(r() * S, r() * S, 2 + r() * 4, 1 + r() * 2, r() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    m.map = wallTex(t, 0.35, 0.35);
+  }
+  return m;
+})();
 
 // ---------- behang ----------
 const wallpaperCache = new Map<string, THREE.MeshStandardMaterial>();

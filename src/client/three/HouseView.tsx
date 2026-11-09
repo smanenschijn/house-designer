@@ -6,7 +6,6 @@ import { useApp } from '../store';
 import {
   STUB,
   buildCeilings,
-  buildFences,
   buildFixtures,
   buildFloors,
   buildNeighbors,
@@ -19,6 +18,7 @@ import {
   type FaceFinishAt,
   type WallMode,
 } from './houseMesh';
+import { buildGardenFences, buildPlants, buildRaised } from './garden';
 import { pointInPolygon } from '../../shared/placement';
 import { activeFinishes, faceFinish, type RoomFinish } from '../../shared/variants';
 import { brickMaterial, groundMaterial, paintMaterial, partyMaterial, skirtingMaterial, wallpaperMaterial } from './materials';
@@ -179,7 +179,9 @@ export function HouseView({ house }: { house: House }) {
   const outdoor = useMemo(() => {
     const g = new THREE.Group();
     g.add(buildFloors(house.outdoor.areas, -0.025, 0, 0, 0.003));
-    g.add(buildFences(house.outdoor.fences));
+    g.add(buildGardenFences(house.outdoor.fences));
+    g.add(buildRaised(house.outdoor.raised ?? []));
+    g.add(buildPlants(house.outdoor.plants ?? []));
     g.add(buildFixtures(house.outdoor.fixtures, 0, true));
     return mergeByMaterial(g);
   }, [house]);

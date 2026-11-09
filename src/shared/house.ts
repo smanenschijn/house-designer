@@ -47,7 +47,11 @@ export type FloorMaterial =
   | 'gras'
   | 'asfalt'
   | 'klinkers'
-  | 'grind';
+  | 'grind'
+  | 'terrastegels'
+  | 'kunstgras'
+  | 'split'
+  | 'aarde';
 
 export interface Room {
   id: string;
@@ -111,6 +115,32 @@ export interface Fence {
   a: V2;
   b: V2;
   height: number;
+  /** 'planken' = dicht schutting (standaard), 'muur' = gemetselde tuinmuur */
+  style?: 'planken' | 'muur';
+}
+
+/** verhoogde border of vloer: rand van stapelblokken/hout, bovenkant als vloermateriaal */
+export interface Raised {
+  id: string;
+  polygon: V2[];
+  height: number;
+  edge: 'stapelblok' | 'hout';
+  top: FloorMaterial;
+}
+
+export type PlantKind = 'esdoorn' | 'bolboom' | 'bol' | 'struik' | 'siergras' | 'boom' | 'treurwilg';
+
+/** procedurele beplanting (geen meubel: staat vast in de tuin) */
+export interface Plant {
+  kind: PlantKind;
+  position: V2;
+  /** totale hoogte in meters */
+  height: number;
+  /** kroondiameter in meters */
+  spread: number;
+  /** hoogte van de voet (bijv. in een verhoogde border) */
+  y?: number;
+  seed?: number;
 }
 
 export interface House {
@@ -126,6 +156,8 @@ export interface House {
     areas: Room[];
     fences: Fence[];
     fixtures: Fixture[];
+    raised?: Raised[];
+    plants?: Plant[];
   };
   assumptions: string[];
 }

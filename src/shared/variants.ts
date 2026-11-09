@@ -71,6 +71,10 @@ export const FLOOR_LABELS: Record<FloorMaterial, string> = {
   asfalt: 'Asfalt',
   klinkers: 'Klinkers',
   grind: 'Grind',
+  terrastegels: 'Terrastegels (grijs, 100 × 100)',
+  kunstgras: 'Kunstgras',
+  split: 'Split (antraciet)',
+  aarde: 'Tuinaarde',
 };
 
 /** vloeren die binnen zinvol zijn */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { House } from '../../shared/house';
@@ -9,6 +9,7 @@ import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
 import { buildRecipe, disposeGroup } from './recipeMesh';
 import { mergeByMaterial } from './merge';
+import { loadModelObject } from './glbModel';
 
 const DEG = Math.PI / 180;
 
@@ -32,19 +33,12 @@ function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
   colliding: boolean;
   interactive: boolean;
 }) {
-  // onderdelen samenvoegen per materiaal: 2–4 tekenopdrachten per meubel i.p.v. 10–20
-  const obj = useMemo(() => {
-    const raw = buildRecipe(item.recipe);
-    const merged = mergeByMaterial(raw);
-    disposeGroup(raw);
-    return merged;
-  }, [item.recipe]);
-  useEffect(() => () => disposeGroup(obj), [obj]);
+  const obj = useItemObject(item);
   const y = elevation + (p.y ?? 0) + (item.recipe.elevation ?? 0);
   const { width: w, depth: d, height: h } = item.recipe.size;
   return (
     <group position={[p.x, y, p.z]} rotation-y={p.rotation * DEG} userData={{ placementId: interactive ? p.id : undefined }}>
-      <primitive object={obj} />
+      {obj && <primitive object={obj} />}
       {(selected || colliding) && (
         <>
           <mesh position={[0, 0.012 - (y - elevation), 0]} rotation-x={-Math.PI / 2} renderOrder={3}>
@@ -66,6 +60,48 @@ function PlacedItem({ p, item, elevation, selected, colliding, interactive }: {
       )}
     </group>
   );
+}
+
+/**
+ * 3D-object van een meubel: het GLB-model als dat er is, anders het recept
+ * (onderdelen samengevoegd per materiaal: 2–4 tekenopdrachten per meubel i.p.v. 10–20).
+ */
+export function useItemObject(item: Item): THREE.Object3D | null {
+  const { invalidate, gl } = useThree();
+  const recipeObj = useMemo(() => {
+    if (item.model) return null;
+    const raw = buildRecipe(item.recipe);
+    const merged = mergeByMaterial(raw);
+    disposeGroup(raw);
+    return merged;
+  }, [item.model, item.recipe]);
+  useEffect(() => () => {
+    if (recipeObj) disposeGroup(recipeObj);
+  }, [recipeObj]);
+  const [modelObj, setModelObj] = useState<{ file: string; obj: THREE.Object3D } | null>(null);
+  const model = item.model;
+  useEffect(() => {
+    if (!model) return;
+    let live = true;
+    loadModelObject(model)
+      .then((obj) => {
+        if (!live) return;
+        setModelObj({ file: `${model.file}:${model.scale}:${model.rotation}`, obj });
+        // nieuwe geometrie: opnieuw tekenen en schaduw bijwerken
+        gl.shadowMap.needsUpdate = true;
+        invalidate();
+        setTimeout(() => {
+          gl.shadowMap.needsUpdate = true;
+          invalidate();
+        }, 60);
+      })
+      .catch((e) => console.error('Model laden mislukt', e));
+    return () => {
+      live = false;
+    };
+  }, [model, gl, invalidate]);
+  if (!model) return recipeObj;
+  return modelObj && modelObj.file === `${model.file}:${model.scale}:${model.rotation}` ? modelObj.obj : null;
 }
 
 export function FurnitureLayer({ house }: { house: House }) {

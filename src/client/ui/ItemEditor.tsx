@@ -3,12 +3,22 @@ import { CATEGORIES, RecipeSchema, STATUSES, STATUS_LABELS, type Category, type 
 import { TEMPLATES, TEMPLATE_MAP, type TemplateParams } from '../../shared/templates';
 import { api } from '../api';
 import { attempt, useApp } from '../store';
-import { recipeThumbnail } from '../three/thumbnail';
+import { modelThumbnail, objectThumbnail, recipeThumbnail } from '../three/thumbnail';
+import { loadFileObject } from '../three/glbModel';
+import * as THREE from 'three';
 import { Icon } from './Icon';
 
 let previewCounter = 0;
 
-type Mode = 'sjabloon' | 'recept';
+type Mode = 'sjabloon' | 'recept' | 'model';
+
+const SCALES = [
+  { v: 1, label: 'meter' },
+  { v: 0.01, label: 'centimeter' },
+  { v: 0.001, label: 'millimeter' },
+];
+
+const guessScale = (largest: number) => (largest > 300 ? 0.001 : largest > 15 ? 0.01 : 1);
 
 export function ItemEditor() {
   const editingId = useApp((s) => s.editingItemId);
@@ -17,7 +27,13 @@ export function ItemEditor() {
   const existing = items.find((i) => i.id === editingId) ?? null;
 
   const initialTemplate = existing?.meta.template?.id ?? (existing ? null : 'bank');
-  const [mode, setMode] = useState<Mode>(existing && !existing.meta.template ? 'recept' : 'sjabloon');
+  const [mode, setMode] = useState<Mode>(existing?.model ? 'model' : existing && !existing.meta.template ? 'recept' : 'sjabloon');
+  // 3D-model (GLB)
+  const [file, setFile] = useState<File | null>(null);
+  const [fileInfo, setFileInfo] = useState<{ object: THREE.Object3D; size: THREE.Vector3; triangles: number } | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [scale, setScale] = useState(existing?.model?.scale ?? 1);
+  const [rotation, setRotation] = useState(existing?.model?.rotation ?? 0);
   const [templateId, setTemplateId] = useState<string>(initialTemplate ?? 'bank');
   const [params, setParams] = useState<TemplateParams>(
     () =>
@@ -61,11 +77,65 @@ export function ItemEditor() {
 
   const [preview, setPreview] = useState('');
   useEffect(() => {
-    if (!recipeResult.recipe) return;
+    if (mode === 'model' || !recipeResult.recipe) return;
     const r = recipeResult.recipe;
     const t = setTimeout(() => setPreview(recipeThumbnail(`preview-${++previewCounter}`, r)), 60);
     return () => clearTimeout(t);
-  }, [recipeResult.recipe]);
+  }, [mode, recipeResult.recipe]);
+
+  // maten van het model na schaal en draaiing
+  const modelSize = useMemo(() => {
+    const raw = fileInfo
+      ? fileInfo.size.toArray()
+      : existing?.model
+        ? existing.model.bounds.max.map((v, i) => v - existing.model!.bounds.min[i])
+        : null;
+    if (!raw) return null;
+    const quarter = Math.round((((rotation % 360) + 360) % 360) / 90) % 2 === 1;
+    const [x, y, z] = raw.map((v) => v * scale);
+    return { width: quarter ? z : x, depth: quarter ? x : z, height: y };
+  }, [fileInfo, existing, scale, rotation]);
+
+  useEffect(() => {
+    if (mode !== 'model' || !modelSize) return;
+    let live = true;
+    if (fileInfo) {
+      const inner = fileInfo.object;
+      inner.scale.setScalar(scale);
+      inner.rotation.y = (rotation * Math.PI) / 180;
+      inner.position.set(0, 0, 0);
+      const wrap = new THREE.Group();
+      wrap.add(inner);
+      wrap.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(inner);
+      inner.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+      setPreview(objectThumbnail(wrap, modelSize));
+      wrap.remove(inner);
+    } else if (existing?.model) {
+      modelThumbnail({ ...existing.model, scale, rotation }, modelSize)
+        .then((u) => live && setPreview(u))
+        .catch(() => undefined);
+    }
+    return () => {
+      live = false;
+    };
+  }, [mode, fileInfo, existing, scale, rotation, modelSize]);
+
+  const chooseFile = async (f: File | null) => {
+    setFile(f);
+    setFileInfo(null);
+    setFileError(null);
+    if (!f) return;
+    try {
+      const info = await loadFileObject(f);
+      setFileInfo(info);
+      setScale(guessScale(Math.max(info.size.x, info.size.y, info.size.z)));
+      setRotation(0);
+      if (!name.trim()) setName(f.name.replace(/\.glb$/i, ''));
+    } catch (e) {
+      setFileError(`Kon het model niet lezen: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   const setNum = (key: string, cm: string, isCm = true) => {
     const v = parseFloat(cm.replace(',', '.'));
@@ -73,10 +143,29 @@ export function ItemEditor() {
     setParams((p) => ({ ...p, [key]: isCm ? v / 100 : v }));
   };
 
+  const canSave = !!name.trim() && !saving && (mode === 'model' ? !!(fileInfo || existing?.model) : !!recipeResult.recipe);
+
   const save = async () => {
+    if (!canSave) return;
     const recipe = recipeResult.recipe;
-    if (!recipe || !name.trim()) return;
     setSaving(true);
+    if (mode === 'model') {
+      const meta = { status, price: price.trim() ? Number(price.replace(',', '.')) : null, shop: shop.trim() || null, url: url.trim() || null, notes: notes.trim() || null, template: null };
+      const res = await attempt(async () => {
+        let it = existing;
+        if (file) it = existing ? await api.replaceModel(existing.id, file) : await api.uploadModel(file, name.trim(), category);
+        if (!it) throw new Error('Kies een GLB-bestand.');
+        if (it.model && (it.model.scale !== scale || it.model.rotation !== rotation)) it = await api.modelSettings(it.id, { scale, rotation });
+        return api.updateItem(it.id, { name: name.trim(), category, meta });
+      });
+      setSaving(false);
+      if (res) {
+        useApp.getState().upsertItem(res);
+        setPanel('library');
+      }
+      return;
+    }
+    if (!recipe) return;
     const meta = {
       status,
       price: price.trim() ? Number(price.replace(',', '.')) : null,
@@ -119,7 +208,12 @@ export function ItemEditor() {
       </div>
       <div className="editor-body">
         <div className="preview">{preview ? <img src={preview} alt="Voorvertoning" /> : <div className="muted">Voorvertoning</div>}</div>
-        {recipeResult.recipe && (
+        {mode === 'model' && modelSize && (
+          <div className="muted center small-text">
+            {Math.round(modelSize.width * 100)} × {Math.round(modelSize.depth * 100)} × {Math.round(modelSize.height * 100)} cm (b × d × h)
+          </div>
+        )}
+        {mode !== 'model' && recipeResult.recipe && (
           <div className="muted center small-text">
             {Math.round(recipeResult.recipe.size.width * 100)} × {Math.round(recipeResult.recipe.size.depth * 100)} × {Math.round(recipeResult.recipe.size.height * 100)} cm (b × d × h)
           </div>
@@ -138,6 +232,9 @@ export function ItemEditor() {
           >
             Recept (JSON)
           </button>
+          <button className={mode === 'model' ? 'on' : ''} onClick={() => setMode('model')}>
+            3D-model
+          </button>
         </div>
 
         <label className="field">
@@ -145,7 +242,49 @@ export function ItemEditor() {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="bijv. IKEA Söderhamn 3-zits" />
         </label>
 
-        {mode === 'sjabloon' ? (
+        {mode === 'model' ? (
+          <>
+            {existing?.model && !file && (
+              <div className="model-info">
+                <strong>{existing.model.source === 'blender' ? 'Gemaakt in Blender' : 'Geüpload model'}</strong>
+                <span className="muted">
+                  {existing.model.triangles.toLocaleString('nl-NL')} driehoeken · {Math.round(existing.model.bytes / 1024).toLocaleString('nl-NL')} kB
+                </span>
+              </div>
+            )}
+            <label className="file-drop">
+              <input type="file" accept=".glb,model/gltf-binary" onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
+              {file ? `${file.name} (${fileInfo ? `${fileInfo.triangles.toLocaleString('nl-NL')} driehoeken` : 'laden…'})` : existing?.model ? 'Ander GLB-bestand kiezen…' : 'Kies een GLB-bestand (export uit Blender, SketchUp, IKEA, …)'}
+            </label>
+            {fileError && <pre className="error-box">{fileError}</pre>}
+            {(fileInfo || existing?.model) && (
+              <div className="grid2">
+                <label className="field">
+                  <span>Eenheid van het model</span>
+                  <select value={scale} onChange={(e) => setScale(Number(e.target.value))}>
+                    {SCALES.map((o) => (
+                      <option key={o.v} value={o.v}>
+                        {o.label}
+                      </option>
+                    ))}
+                    {!SCALES.some((o) => o.v === scale) && <option value={scale}>schaal {scale}</option>}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Voorkant draaien</span>
+                  <select value={rotation} onChange={(e) => setRotation(Number(e.target.value))}>
+                    {[0, 90, 180, 270].map((d) => (
+                      <option key={d} value={d}>
+                        {d}°
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            <p className="muted small-text">De voorkant hoort naar je toe te wijzen in de voorvertoning. Claude kan modellen ook rechtstreeks maken met Blender.</p>
+          </>
+        ) : mode === 'sjabloon' ? (
           <>
             <label className="field">
               <span>Soort</span>
@@ -210,7 +349,7 @@ export function ItemEditor() {
             <textarea className="code" rows={12} value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false} />
           </label>
         )}
-        {recipeResult.error && <pre className="error-box">{recipeResult.error}</pre>}
+        {mode !== 'model' && recipeResult.error && <pre className="error-box">{recipeResult.error}</pre>}
 
         <div className="grid2">
           <label className="field">
@@ -253,7 +392,7 @@ export function ItemEditor() {
       </div>
       <div className="panel-foot">
         <button onClick={() => setPanel('library')}>Annuleren</button>
-        <button className="primary" disabled={!recipeResult.recipe || !name.trim() || saving} onClick={save}>
+        <button className="primary" disabled={!canSave} onClick={save}>
           {saving ? 'Opslaan…' : 'Opslaan'}
         </button>
       </div>

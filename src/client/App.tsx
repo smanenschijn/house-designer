@@ -15,6 +15,7 @@ import { WalkOverlay } from './ui/WalkOverlay';
 import { WallBar } from './ui/WallBar';
 import { FocusChip } from './ui/FocusChip';
 import { oauthQuery, renderParams } from './renderMode';
+import { ItemStage } from './three/ItemStage';
 
 const house = waalstraat16;
 
@@ -79,6 +80,14 @@ export function App() {
   if (!checked) return null;
   if (!user) return <Login onLogin={(u) => useApp.getState().setUser(u)} />;
   if (oauthQuery) return <Consent query={oauthQuery} />;
+  if (renderParams?.item)
+    return (
+      <div className="app render-mode">
+        <div className="viewport">
+          <ItemStage itemId={renderParams.item} azimuth={renderParams.azimuth ?? 330} elevation={renderParams.elevation ?? 22} />
+        </div>
+      </div>
+    );
   if (renderParams)
     return (
       <div className="app render-mode">

@@ -5,7 +5,7 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 
 ## Wat er nu kan (fase 1)
 
-- **Het huis in 3D**, opgemeten uit de plattegronden van de brochure: begane grond (met uitbouw), eerste verdieping, zolder met schuin dak, tuin met overkapping, bergingen en carport. Zonder de meubels van de verkopers; vaste inbouw (keuken, badkamer, trap) staat er wel.
+- **Het huis in 3D**, opgemeten uit de plattegronden van de brochure: begane grond (met uitbouw), eerste verdieping, zolder met schuin dak, voor- en achtertuin nagebouwd naar de brochurefoto's (terras, borders met esdoorns, kunstgras, overkapping, voortuin met bolcatalpa), bergingen en carport. Zonder de meubels van de verkopers; vaste inbouw (keuken, badkamer, trap) staat er wel.
 - **Weergave**: per verdieping of het hele huis met dak (“Buiten”). Muren hoog, weggesneden aan de camerakant (“Weg”) of allemaal laag. 90° draaien, kompas.
 - **Bibliotheek**: meubels maken met sjablonen (bank, hoekbank, bed, tafel, kast, …) op exacte maten, of een **JSON-recept plakken** uit een Claude-gesprek. Status, prijs, winkel, link en notities per meubel. Totaal “nog te kopen”.
 - **Inrichten**: plaatsen, slepen, draaien (R / Q / E), dupliceren, verwijderen. Meubels klikken **magnetisch tegen muren** en worden **rood als ze botsen** met een muur of ander meubel.
@@ -52,10 +52,23 @@ Wat Claude kan (MCP-tools):
 | `render_view` | afbeelding van een kamer/verdieping (iso of perspectief, met zonnestand) |
 | `list_room_variants`, `create_room_variant`, `activate_room_variant` | varianten per kamer bekijken, maken (kopie) en wisselen |
 | `set_room_finish` | vloer, verf of behang van een kamer, of van één muur per windrichting (accentmuur) |
+| `create_furniture_with_blender` | meubel bouwen met een Blender-script (headless Blender op de server), met voorvertoning |
+| `prepare_model_upload` | eenmalige uploadlink, om een model uit de eigen Blender (Mac) rechtstreeks te uploaden |
+| `preview_furniture_item` | afbeelding van één meubel op een raster van 10 cm, om een model te controleren |
 
 Alle wijzigingen verschijnen direct in de app bij iedereen die hem open heeft (Server-Sent Events), met een melding wie wat deed. Koppelingen intrekken kan onder *Account → Claude koppelen*.
 
 Techniek: OAuth 2.1 met dynamische clientregistratie en PKCE, tokens van 1 uur met roterende refresh tokens (90 dagen). `render_view` gebruikt de Chromium in de container (software-WebGL); een afbeelding duurt 20–40 seconden.
+
+## Betere modellen met Blender
+
+Een meubel kan naast het recept ook een **3D-model (GLB)** hebben; de app tekent dan het model. Drie manieren:
+
+- **Claude met server-Blender** (werkt ook vanaf de telefoon): *"Maak de Hay Mags 3-zits na in Blender, met de echte maten en kussens, en zet hem in de woonkamer."* Claude schrijft een bpy-script, de server draait het in Blender en Claude krijgt een voorvertoning terug om te verbeteren.
+- **Claude met je eigen Blender** (Claude Desktop of Claude Code op de Mac, met de Blender-koppeling aan): Claude bouwt het model in Blender, vraagt `prepare_model_upload` aan en uploadt het GLB vanuit Blender. Je kunt het model daarna zelf bijschaven en opnieuw uploaden.
+- **Zelf uploaden:** *Bibliotheek → Nieuw meubel → 3D-model*, kies een `.glb` (Blender, SketchUp, fabrikant). Stel de eenheid (m/cm/mm) en de draaiing van de voorkant in.
+
+Afspraken voor modellen: meters, voorkant naar -Y in Blender (wordt +z in de app), onderkant op de grond. Een nieuw recept (via Claude of de editor) vervangt het model weer.
 
 ## Lokaal draaien
 
@@ -94,6 +107,8 @@ npm run user:add -- stefan Stefan "een-sterk-wachtwoord"
 
 Healthcheck: `GET /api/health`.
 
+De image bevat headless Blender (~1 GB). Zonder Blender bouwen: zet in Dokploy de build-arg `WITH_BLENDER=false`; Claude gebruikt dan alleen recepten en uploads. Modellen worden opgeslagen in `/data/models`.
+
 ## Techniek
 
 - `src/shared` — huismodel (`waalstraat16.ts`), meubelrecepten (`recipe.ts`, zod-schema), sjablonen, plaatsingslogica (snap/botsing).
@@ -124,4 +139,4 @@ Afwerkingen: `matte`, `satin`, `gloss`, `metal`, `glass`, `fabric`, `velvet`, `l
 
 ## Aannames in het huismodel
 
-Plafond 2,60 m, verdiepingshoogte 2,80 m, binnendeuren 83 × 211,5 cm, dakhelling ca. 34° (afgeleid uit de 1,50 m-lijn op de zolderplattegrond), vensterbanken geschat uit foto's, ligging van overkapping en tuinberging indicatief. Aanpassen kan in `src/shared/waalstraat16.ts`.
+Plafond 2,60 m, verdiepingshoogte 2,80 m, binnendeuren 83 × 211,5 cm, dakhelling ca. 34° (afgeleid uit de 1,50 m-lijn op de zolderplattegrond), vensterbanken geschat uit foto's, ligging van overkapping, borders en beplanting indicatief. Aanpassen kan in `src/shared/waalstraat16.ts`.

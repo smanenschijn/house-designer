@@ -9,7 +9,6 @@ import type { PublicUser } from './auth';
 import {
   createItem,
   createPlacement,
-  deleteItem,
   deletePlacement,
   getItem,
   getPlacement,
@@ -42,11 +41,15 @@ const visible = () => {
   return listPlacements().filter((p) => isPlacementVisible(p.variantId, vs, act));
 };
 import { renderView } from './render';
+import { BlenderError, blenderPath, runBlender } from './blender';
+import { ModelError, UPLOAD_TTL_MS, clearModel, createUploadTicket, deleteItemWithModel, saveModel } from './models';
+import { origin } from './config';
 
 const INSTRUCTIONS = `Dit is de inrichtingsapp voor Waalstraat 16 in Nijverdal (twee-onder-een-kap, begane grond, eerste verdieping, zolder).
 Gebruik get_house voor de plattegrond met maten. Meubels maak je als "recept": eenvoudige 3D-vormen op exacte maten (zie create_furniture_item).
 Gebruik altijd de echte maten van het product (breedte × diepte × hoogte); zoek die op als de gebruiker een link of productnaam geeft.
 Plaats meubels met place_furniture en controleer met render_view hoe het eruitziet.
+Voor mooiere, gedetailleerde meubels gebruik je Blender: create_furniture_with_blender (Blender op de server, werkt overal) of, als je zelf Blender-tools hebt, prepare_model_upload (model in de eigen Blender van de gebruiker bouwen en uploaden). Bekijk het resultaat met preview_furniture_item en verbeter tot het klopt met de productfoto's.
 Elke kamer kan meerdere varianten hebben (list_room_variants). Wil de gebruiker een alternatief proberen, maak dan eerst een variant (create_room_variant) zodat de huidige opstelling bewaard blijft. Vloer en wandkleur stel je in met set_room_finish.
 Antwoord de gebruiker in het Nederlands.`;
 
@@ -62,6 +65,15 @@ const RECIPE_GUIDE = `Recept (JSON), alles in meters:
   • extrude: points [[x,y],...] profiel in XY, depth langs z (gecentreerd)
   • lathe: points [[straal,y],...] gedraaid rond de y-as
 - Tip: bouw herkenbaar maar eenvoudig (10–40 onderdelen): frame, kussens, poten, grepen, naden. Houd alle onderdelen binnen size.`;
+
+const BLENDER_GUIDE = `Blender-richtlijnen (bpy, Blender 3.4+):
+- Eenheden in meters. Z is omhoog. De VOORKANT van het meubel wijst naar -Y (Blender "Front"-aanzicht); breedte langs X, diepte langs Y.
+- Zet het meubel op de grond (onderkant op z = 0), gecentreerd rond x = 0, y = 0. Exacte buitenmaten van het product aanhouden.
+- Begin met een lege scène (die krijg je al); maak alleen de objecten van het meubel (geen camera's, lampen of vloer).
+- Materialen: Principled BSDF met Base Color, Roughness, Metallic (en eventueel Transmission voor glas). Procedurele texturen exporteren NIET naar GLB; gebruik kleuren, of bak ze eerst naar een afbeelding.
+- Maak het realistisch: afgeronde randen (Bevel-modifier, 2–3 segmenten, 3–10 mm), kussens met Subdivision Surface, naden en zachte vormen, echte poten en grepen. Modifiers worden bij export toegepast.
+- Houd het licht: richtwaarde < 60.000 driehoeken; gebruik 'Shade Smooth' + Auto Smooth (mesh.use_auto_smooth = True) in plaats van extra geometrie.
+- Gebruik bpy.data/bmesh of bpy.ops; selecteer/activeer objecten expliciet voordat je operators gebruikt.`;
 
 const fmtCm = (r: Recipe) => `${Math.round(r.size.width * 100)} × ${Math.round(r.size.depth * 100)} × ${Math.round(r.size.height * 100)} cm`;
 
@@ -89,6 +101,7 @@ function itemSummary(it: Item, counts: Map<string, number>) {
     shop: it.meta.shop ?? null,
     url: it.meta.url ?? null,
     placed: counts.get(it.id) ?? 0,
+    model: it.model ? `${it.model.source === 'blender' ? 'Blender' : 'upload'}, ${it.model.triangles} driehoeken` : 'recept',
   };
 }
 
@@ -162,7 +175,7 @@ export function buildMcpServer(user: PublicUser) {
     'get_furniture_item',
     {
       title: 'Meubel met recept',
-      description: 'Volledige gegevens van één meubel, inclusief het 3D-recept (om het aan te passen).',
+      description: 'Volledige gegevens van één meubel, inclusief het 3D-recept, en bij een Blender-model ook het script (model.script) waarmee het gemaakt is, zodat je het kunt verbeteren.',
       inputSchema: { item_id: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -260,7 +273,7 @@ export function buildMcpServer(user: PublicUser) {
     'update_furniture_item',
     {
       title: 'Meubel aanpassen',
-      description: 'Past naam, recept of gegevens (status, prijs, winkel, link, notities) van een meubel aan. Geplaatste exemplaren veranderen mee.',
+      description: 'Past naam, recept of gegevens (status, prijs, winkel, link, notities) van een meubel aan. Geplaatste exemplaren veranderen mee. Let op: een nieuw recept vervangt een eventueel 3D-model (Blender/upload); voor een beter model gebruik je create_furniture_with_blender met item_id.',
       inputSchema: {
         item_id: z.string(),
         name: z.string().optional(),
@@ -273,6 +286,7 @@ export function buildMcpServer(user: PublicUser) {
       const cur = getItem(item_id);
       if (!cur) return fail('Meubel niet gevonden.');
       actor(`meubel “${name ?? cur.name}” aangepast`);
+      if (recipe && cur.model) clearModel(item_id);
       const meta = Object.fromEntries(Object.entries({ status, price, shop, url, notes }).filter(([, v]) => v !== undefined));
       const it = updateItem(item_id, {
         ...(name ? { name } : {}),
@@ -296,7 +310,7 @@ export function buildMcpServer(user: PublicUser) {
       const it = getItem(item_id);
       if (!it) return fail('Meubel niet gevonden.');
       actor(`meubel “${it.name}” verwijderd`);
-      deleteItem(item_id);
+      deleteItemWithModel(item_id);
       return text(`“${it.name}” is verwijderd.`);
     },
   );
@@ -550,6 +564,117 @@ export function buildMcpServer(user: PublicUser) {
         accent_walls: Object.keys(v.finish.faces ?? {}).length,
         applied_to: finish ? applied : undefined,
       });
+    },
+  );
+
+  // ---------- Blender en 3D-modellen ----------
+  const previewImage = async (itemId: string, azimuth = 330, elevation = 22) => {
+    const jpeg = await renderView(user, { item: itemId, elevation, level: 0, camera: 'persp', azimuth });
+    return { type: 'image' as const, data: jpeg.toString('base64'), mimeType: 'image/jpeg' };
+  };
+
+  server.registerTool(
+    'create_furniture_with_blender',
+    {
+      title: 'Meubel maken met Blender',
+      description:
+        `Bouwt een gedetailleerd 3D-meubel met een Blender-script (Python/bpy) dat op de server in headless Blender draait. Het resultaat (GLB) komt in de bibliotheek en je krijgt een voorvertoning terug zoals het in de app staat.\n` +
+        `Met item_id vervang je het model van een bestaand meubel (plaatsingen blijven staan); zonder item_id komt er een nieuw meubel. Bij een fout krijg je de Python-traceback terug: verbeter het script en probeer opnieuw.\n\n${BLENDER_GUIDE}`,
+      inputSchema: {
+        script: z.string().min(10).describe('volledig bpy-script dat het meubel opbouwt'),
+        name: z.string().optional().describe('verplicht voor een nieuw meubel'),
+        category: z.enum(CATEGORIES).optional(),
+        item_id: z.string().optional().describe('bestaand meubel waarvan het model vervangen wordt'),
+        ...metaShape,
+      },
+    },
+    async ({ script, name, category, item_id, status, price, shop, url, notes }) => {
+      if (!blenderPath()) return fail('Blender is niet beschikbaar op deze server. Gebruik prepare_model_upload met de eigen Blender van de gebruiker, of create_furniture_item.');
+      if (!item_id && !name) return fail('Geef een name voor het nieuwe meubel (of item_id om een bestaand meubel te vervangen).');
+      if (item_id && !getItem(item_id)) return fail('Meubel niet gevonden.');
+      let glb: Buffer;
+      try {
+        ({ glb } = await runBlender(script));
+      } catch (e) {
+        if (e instanceof BlenderError) return fail(`${e.message}\n\n${e.log}`);
+        throw e;
+      }
+      try {
+        const meta = Object.fromEntries(Object.entries({ status, price, shop, url, notes }).filter(([, v]) => v !== undefined));
+        actor(`meubel “${name ?? getItem(item_id!)?.name}” gemaakt in Blender`);
+        const it = saveModel(glb, { itemId: item_id, name, category, meta, source: 'blender', script, scale: 1, rotation: 0 }, user.id);
+        if (item_id && (name || category || Object.keys(meta).length)) updateItem(item_id, { ...(name ? { name } : {}), ...(category ? { category } : {}), meta: { ...it.meta, ...meta } });
+        const info = { item_id: it.id, name: it.name, size_cm: fmtCm(it.recipe), triangles: it.model!.triangles, kb: Math.round(it.model!.bytes / 1024) };
+        try {
+          return { content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }, await previewImage(it.id)] };
+        } catch (e) {
+          return json({ ...info, preview: `voorvertoning mislukt: ${(e as Error).message}` });
+        }
+      } catch (e) {
+        if (e instanceof ModelError) return fail(e.message);
+        throw e;
+      }
+    },
+  );
+
+  server.registerTool(
+    'prepare_model_upload',
+    {
+      title: 'Uploadlink voor een 3D-model',
+      description:
+        'Geeft een eenmalige uploadlink (30 minuten geldig) voor een GLB-bestand. Bedoeld voor wanneer je een model bouwt in de eigen Blender van de gebruiker (bijv. via Blender-MCP-tools): exporteer daar als GLB en upload met het meegeleverde Python-fragment rechtstreeks vanuit Blender. ' +
+        'Zo hoeft het bestand niet door het gesprek. Met item_id vervang je het model van een bestaand meubel.\n\n' + BLENDER_GUIDE,
+      inputSchema: {
+        name: z.string().optional().describe('verplicht voor een nieuw meubel'),
+        category: z.enum(CATEGORIES).optional(),
+        item_id: z.string().optional(),
+        ...metaShape,
+      },
+    },
+    async ({ name, category, item_id, status, price, shop, url, notes }) => {
+      if (!item_id && !name) return fail('Geef een name voor het nieuwe meubel (of item_id om een bestaand meubel te vervangen).');
+      if (item_id && !getItem(item_id)) return fail('Meubel niet gevonden.');
+      const meta = Object.fromEntries(Object.entries({ status, price, shop, url, notes }).filter(([, v]) => v !== undefined));
+      const token = createUploadTicket(user.id, { itemId: item_id, name, category, meta });
+      const uploadUrl = `${origin}/api/upload/${token}`;
+      const python = [
+        'import bpy, os, tempfile, urllib.request, json',
+        "path = os.path.join(tempfile.gettempdir(), 'meubel.glb')",
+        "bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', export_apply=True, export_yup=True, use_selection=False, export_cameras=False, export_lights=False)",
+        `req = urllib.request.Request(${JSON.stringify(uploadUrl)}, data=open(path, 'rb').read(), method='POST', headers={'Content-Type': 'model/gltf-binary'})`,
+        'print(json.loads(urllib.request.urlopen(req, timeout=60).read()))',
+      ].join('\n');
+      return json({
+        upload_url: uploadUrl,
+        expires_in_minutes: UPLOAD_TTL_MS / 60_000,
+        method: 'POST met het GLB-bestand als body (Content-Type: model/gltf-binary)',
+        blender_python: python,
+        curl: `curl -X POST --data-binary @meubel.glb -H 'Content-Type: model/gltf-binary' ${uploadUrl}`,
+        next: 'Na de upload: preview_furniture_item met het teruggegeven item_id om het resultaat te controleren.',
+      });
+    },
+  );
+
+  server.registerTool(
+    'preview_furniture_item',
+    {
+      title: 'Voorvertoning van een meubel',
+      description: 'Afbeelding van één meubel uit de bibliotheek, los en op ware grootte met een maatraster van 10 cm, zoals het in de app getekend wordt. Gebruik dit om een model te vergelijken met de productfoto en te verbeteren. azimuth: 0 = recht van voren, 90 = rechterzijkant, 180 = achterkant.',
+      inputSchema: {
+        item_id: z.string(),
+        azimuth: z.number().optional().describe('standaard 330 (schuin links-voor)'),
+        elevation: z.number().min(-10).max(90).optional().describe('kijkhoogte in graden, standaard 22'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ item_id, azimuth, elevation }) => {
+      const it = getItem(item_id);
+      if (!it) return fail('Meubel niet gevonden.');
+      try {
+        return { content: [{ type: 'text' as const, text: `${it.name} — ${fmtCm(it.recipe)}${it.model ? `, ${it.model.triangles} driehoeken` : ' (recept)'}` }, await previewImage(it.id, azimuth, elevation)] };
+      } catch (e) {
+        return fail(`Voorvertoning mislukt: ${(e as Error).message}`);
+      }
     },
   );
 

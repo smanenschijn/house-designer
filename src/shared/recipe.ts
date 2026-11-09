@@ -132,12 +132,34 @@ export const ItemInputSchema = z.object({
 });
 export type ItemInput = z.input<typeof ItemInputSchema>;
 
+/**
+ * 3D-model (GLB) bij een meubel, gemaakt in Blender of geüpload. Het recept blijft bestaan als
+ * eenvoudige doos met de buitenmaten (voor botsingen, maten en als terugval).
+ */
+export interface ItemModel {
+  /** bestandsnaam onder /api/models/ */
+  file: string;
+  bytes: number;
+  triangles: number;
+  source: 'blender' | 'upload';
+  /** grenzen van het model zoals aangeleverd (m, y omhoog) */
+  bounds: { min: [number, number, number]; max: [number, number, number] };
+  /** schaal (bijv. 0.01 als het model in cm is) */
+  scale: number;
+  /** extra draaiing om y in graden (0/90/180/270) als de voorkant niet naar +z wijst */
+  rotation: number;
+  /** Blender-script waarmee het model is gemaakt (om aan te passen) */
+  script?: string | null;
+  updatedAt: string;
+}
+
 export interface Item {
   id: string;
   name: string;
   category: Category;
   recipe: Recipe;
   meta: ItemMeta;
+  model?: ItemModel | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

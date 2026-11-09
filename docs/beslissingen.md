@@ -28,7 +28,11 @@ Antwoorden uit de vragenronde, als basis voor het ontwerp.
 - **Stijl:** strak en op maat (geen fotorealisme). Juiste maten, kleuren en materialen zijn belangrijker dan details.
 - **Aanpak (fase 1):** Claude levert via de MCP een declaratief *recept* (JSON): onderdelen als afgeronde blokken, cilinders, geëxtrudeerde profielen en gedraaide vormen, elk met maten, positie en materiaal. De site bouwt daar live het model van in Three.js.
   - Voordelen: maten altijd exact, parameters later aan te passen (bank 20 cm breder = één getal), varianten (kleur/maat) gratis, geen code-executie op de server, werkt direct vanaf de telefoon.
-- **Blender (later, optioneel):** headless Blender op de server als tweede pipeline voor vormen die het recept niet aankan, en om realistische/externe modellen op te schonen en te schalen. Niet als standaard, vanwege: willekeurige Python uitvoeren op de server (sandbox nodig), trager, foutgevoeliger, procedurele materialen moeten gebaked worden voor glTF, en het resultaat is niet meer parametrisch aan te passen.
+- **Blender (2026-11-09):** tweede pipeline naast het recept, voor meubels die "net niet" genoeg zijn als recept. Beide routes leveren een GLB-model op dat de app tekent in plaats van het recept (het recept blijft als doos met de buitenmaten, voor botsingen en maten).
+  - *Server-Blender* (`create_furniture_with_blender`): Claude schrijft een bpy-script dat in headless Blender (Debian, 3.4) in de container draait. Werkt overal, ook vanaf de telefoon. Afscherming: aparte gebruiker zonder toegang tot `/data`, lege omgeving (geen geheimen), tijdelijke map, tijdslimiet 180 s, één tegelijk. Kost ~1 GB extra in de image; uit te zetten met build-arg `WITH_BLENDER=false`.
+  - *Eigen Blender op de Mac* (`prepare_model_upload`): Claude bouwt het model in de Blender van de gebruiker (via de Blender-MCP) en uploadt het GLB vanuit Blender zelf naar een eenmalige uploadlink (30 min). Zo gaat het bestand niet door het gesprek. Mooiste resultaat en zelf bij te schaven.
+  - Handmatig: in de meubeleditor een GLB uploaden (met eenheid m/cm/mm en draaiing van de voorkant).
+  - Feedbacklus: `preview_furniture_item` rendert één meubel op een raster van 10 cm, zoals de app het tekent.
 - **Later optioneel:** foto-naar-3D-dienst (Meshy/Tripo) voor realistische modellen.
 
 ## Apparaten
@@ -89,8 +93,26 @@ Verhuizing binnen 2 maanden (vanaf 2026-11-08, dus vóór begin januari 2027). Z
 **Fase 3 – Comfort** ✅ (2026-11-08)
 - Rondloopmodus (desktop + touch), varianten per ruimte, wandkleur/vloer, totaalprijs, status/filters.
 
+**Fase 4 – Beleving en betere modellen** ✅ (2026-11-09)
+- Voor- en achtertuin nagebouwd naar de brochurefoto's: terrastegels, borders van stapelblokken met Japanse esdoorns, kunstgras, overkapping met kapconstructie, tuinmuur, voortuin met split en bolcatalpa.
+- Blender-koppeling (server én eigen Blender), GLB-upload in de app, voorvertoning per meubel.
+
 **Later**
-- Headless Blender, foto-naar-3D, zonlicht/oriëntatie, meten in de app.
+- Foto-naar-3D, meten in de app, PBR-texturen en gebakken licht (zie hieronder).
+
+## Grafische kwaliteit: Godot of Three.js?
+
+**Besluit (2026-11-09): geen Godot.** We blijven bij Three.js en verbeteren de beelden stap voor stap (zie hieronder).
+
+Afweging. Godot 4 geeft betere belichting (SDFGI/lightmaps) en een editor, maar op het web exporteert het alleen met de Compatibility-renderer (WebGL2), zonder die geavanceerde belichting, met een download van 30–40 MB en matige prestaties op iPhone/iPad. Ook zouden de live-samenwerking, de MCP-koppeling en de hele UI opnieuw gebouwd moeten worden.
+
+Wat in Three.js de grootste sprong geeft, in deze volgorde:
+1. **Betere modellen** (Blender/GLB, nu klaar): meubels bepalen het grootste deel van de indruk.
+2. **Echte texturen (PBR):** foto-texturen voor vloer, baksteen, stof en hout in plaats van procedurele canvas-texturen.
+3. **Gebakken licht:** het huis (vast) eenmalig in Blender belichten (lightmaps/AO) en als GLB laden; meubels krijgen realtime licht. Dit is het grootste verschil tussen "game" en "visualisatie".
+4. **Omgevingsbelichting** met een HDRI voor zachte reflecties.
+
+Pas als dat niet genoeg is, is een native app (Godot/Unreal) voor desktop het overwegen waard, als aparte "fotomodus" naast de webapp.
 
 ## Techniek (voorstel)
 

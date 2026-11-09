@@ -9,6 +9,10 @@ import { COOKIE } from './authRoutes';
  */
 
 export interface RenderOptions {
+  /** alleen dit meubel tonen (voorvertoning), level/room worden dan genegeerd */
+  item?: string;
+  /** kijkhoogte in graden boven de horizon (voorvertoning) */
+  elevation?: number;
   level: number;
   room?: string;
   camera: 'iso' | 'persp';

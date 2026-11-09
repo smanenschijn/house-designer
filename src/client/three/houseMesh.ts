@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { Fence, FlatRoof, GableRoof, House, Level, Opening, Room, V2, Wall } from '../../shared/house';
+import type { FlatRoof, GableRoof, House, Level, Opening, Room, V2, Wall } from '../../shared/house';
 import { buildRecipe } from './recipeMesh';
 import { DEFAULT_WALL, wallFinishKey, type WallFinish } from '../../shared/variants';
 import {
   HOUSE_COLORS,
   doorMaterial,
-  fenceMaterial,
   floorMaterial,
   frameMaterial,
   glassMaterial,
@@ -506,22 +505,6 @@ function flatRoof(r: FlatRoof, material: THREE.Material | undefined, cast: boole
 }
 
 // ---------- tuin & buren ----------
-export function buildFences(fences: Fence[]): THREE.Group {
-  const g = new THREE.Group();
-  for (const f of fences) {
-    const a = new THREE.Vector2(...f.a);
-    const b = new THREE.Vector2(...f.b);
-    const len = a.distanceTo(b);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(len, f.height, 0.04), fenceMaterial);
-    m.position.set((a.x + b.x) / 2, f.height / 2, (a.y + b.y) / 2);
-    m.rotation.y = Math.atan2(-(b.y - a.y), b.x - a.x);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    g.add(m);
-  }
-  return g;
-}
-
 export function buildNeighbors(house: House, material: THREE.Material = neighborMaterial, cast = false): THREE.Group {
   const g = new THREE.Group();
   for (const n of house.neighbors ?? []) {

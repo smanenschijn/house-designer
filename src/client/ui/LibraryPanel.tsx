@@ -1,21 +1,34 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { House } from '../../shared/house';
 import { CATEGORIES, STATUSES, STATUS_LABELS, type Item, type ItemStatus } from '../../shared/recipe';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
-import { recipeThumbnail } from '../three/thumbnail';
+import { modelThumbnail, recipeThumbnail } from '../three/thumbnail';
 import { fmtPrice, fmtSize, placeItem } from './actions';
 import { Icon } from './Icon';
 
 function Thumb({ item }: { item: Item }) {
-  const src = useMemo(() => {
+  const recipeSrc = useMemo(() => {
+    if (item.model) return '';
     try {
       return recipeThumbnail(`${item.id}:${item.updatedAt}`, item.recipe);
     } catch {
       return '';
     }
-  }, [item.id, item.updatedAt, item.recipe]);
-  return <img className="thumb" src={src} alt="" loading="lazy" />;
+  }, [item.id, item.updatedAt, item.recipe, item.model]);
+  const [modelSrc, setModelSrc] = useState('');
+  useEffect(() => {
+    if (!item.model) return;
+    let live = true;
+    modelThumbnail(item.model, item.recipe.size)
+      .then((u) => live && setModelSrc(u))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [item.model, item.recipe.size]);
+  const src = item.model ? modelSrc : recipeSrc;
+  return src ? <img className="thumb" src={src} alt="" loading="lazy" /> : <div className="thumb" />;
 }
 
 export function LibraryPanel({ house }: { house: House }) {
@@ -94,6 +107,7 @@ export function LibraryPanel({ house }: { house: House }) {
               <div className="card-sub">{fmtSize(it)}</div>
               <div className="card-meta">
                 <span className={`badge b-${it.meta.status}`}>{STATUS_LABELS[it.meta.status]}</span>
+                {it.model && <span className="badge b-model">{it.model.source === 'blender' ? 'Blender' : '3D-model'}</span>}
                 {it.meta.price != null && <span>{fmtPrice(it.meta.price)}</span>}
                 {it.meta.shop && <span className="muted">{it.meta.shop}</span>}
                 {counts.get(it.id) ? <span className="muted">{counts.get(it.id)}× geplaatst</span> : null}

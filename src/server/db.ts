@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Item, ItemInput, Placement, PlacementInput } from '../shared/recipe';
+import type { Item, ItemInput, ItemModel, Placement, PlacementInput, Recipe } from '../shared/recipe';
 import { ItemInputSchema, PlacementInputSchema } from '../shared/recipe';
 import { notifyChange } from './events';
 
@@ -44,6 +44,8 @@ db.exec(`
   );
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `);
+// migratie: 3D-model (GLB) per meubel
+if (!(db.prepare(`PRAGMA table_info(items)`).all() as { name: string }[]).some((c) => c.name === 'model')) db.exec(`ALTER TABLE items ADD COLUMN model TEXT`);
 
 const now = () => new Date().toISOString();
 
@@ -66,6 +68,7 @@ interface ItemRow {
   category: string;
   recipe: string;
   meta: string;
+  model: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -76,6 +79,7 @@ const toItem = (r: ItemRow): Item => ({
   category: r.category as Item['category'],
   recipe: JSON.parse(r.recipe),
   meta: JSON.parse(r.meta),
+  model: r.model ? JSON.parse(r.model) : null,
   createdBy: r.created_by,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -109,6 +113,16 @@ export function updateItem(id: string, input: Partial<ItemInput>): Item | null {
   });
   db.prepare(`UPDATE items SET name = ?, category = ?, recipe = ?, meta = ?, updated_at = ? WHERE id = ?`).run(
     merged.name, merged.category, JSON.stringify(merged.recipe), JSON.stringify(merged.meta), now(), id,
+  );
+  bumpVersion();
+  return getItem(id);
+}
+/** zet (of wist) het 3D-model en de bijbehorende buitenmaten in het recept */
+export function setItemModel(id: string, model: ItemModel | null, recipe?: Recipe): Item | null {
+  const cur = getItem(id);
+  if (!cur) return null;
+  db.prepare(`UPDATE items SET model = ?, recipe = ?, updated_at = ? WHERE id = ?`).run(
+    model ? JSON.stringify(model) : null, JSON.stringify(recipe ?? cur.recipe), now(), id,
   );
   bumpVersion();
   return getItem(id);

@@ -12,6 +12,7 @@ import { viewState } from '../viewState';
 import { roomEnvironment } from './environment';
 import { installDebugBridge } from './debug';
 import { renderParams } from '../renderMode';
+import { pendingModels } from './glbModel';
 import { FurnitureLayer } from './Furniture';
 import { HouseView } from './HouseView';
 import { WalkControls } from './WalkControls';
@@ -35,7 +36,8 @@ function houseExtent(house: House) {
 }
 
 function roomExtent(house: House, roomId: string) {
-  for (const level of house.levels)
+  const levels = [...house.levels, { elevation: 0, rooms: house.outdoor.areas }];
+  for (const level of levels)
     for (const r of level.rooms)
       if (r.id === roomId) {
         const xs = r.polygon.map((p) => p[0]);
@@ -53,6 +55,12 @@ function RenderReady() {
   const since = useRef(0);
   useFrame(() => {
     if (!renderParams || !loaded) return;
+    // wachten tot alle 3D-modellen (GLB) geladen zijn
+    if (pendingModels() > 0) {
+      since.current = 0;
+      frames.current = 0;
+      return;
+    }
     if (!since.current) since.current = performance.now();
     frames.current += 1;
     // software-rendering is traag: een paar volledige frames na het laden is genoeg

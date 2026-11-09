@@ -12,10 +12,13 @@ import { bearerUser, initOAuth, oauthApp, oauthPublic, wwwAuthenticate } from '.
 import { buildMcpServer } from './mcp';
 import { VariantError, activateVariant, activeMap, createVariant, deleteVariant, initVariants, listVariants, updateVariant } from './variants';
 import { waalstraat16 } from '../shared/waalstraat16';
+import { chmodSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { CATEGORIES, type Category } from '../shared/recipe';
+import { MAX_MODEL_BYTES, ModelError, clearModel, deleteItemWithModel, readModelFile, redeemUploadTicket, saveModel, updateModelSettings } from './models';
 import {
   createItem,
   createPlacement,
-  deleteItem,
   deletePlacement,
   getVersion,
   listItems,
@@ -28,6 +31,15 @@ import {
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 8787);
 
+// Blender-scripts draaien als aparte gebruiker: die mag niet in de gegevensmap kijken
+if (process.getuid?.() === 0) {
+  try {
+    chmodSync(resolve(process.env.DATA_DIR ?? 'data'), 0o700);
+  } catch {
+    /* geen rechten of map bestaat (nog) niet */
+  }
+}
+
 initAuth();
 initOAuth();
 initVariants(waalstraat16);
@@ -39,6 +51,7 @@ const app = new Hono<AuthEnv>();
 app.onError((err, c) => {
   if (err instanceof AuthError) return c.json({ error: err.message }, err.status);
   if (err instanceof VariantError) return c.json({ error: err.message }, 400);
+  if (err instanceof ModelError) return c.json({ error: err.message }, 400);
   if (err instanceof ZodError) return c.json({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, 400);
   console.error(err);
   return c.json({ error: err.message || 'Serverfout' }, 500);
@@ -68,6 +81,26 @@ app.all('/mcp', async (c) => {
   await server.connect(transport);
   const res = await transport.handleRequest(c.req.raw);
   return res;
+});
+
+// ---------- eenmalige uploadlink voor 3D-modellen (bijv. vanuit Blender op de Mac) ----------
+async function readGlb(req: Request): Promise<Buffer> {
+  const len = Number(req.headers.get('content-length') ?? 0);
+  if (len > MAX_MODEL_BYTES) throw new ModelError(`Model is te groot (max ${MAX_MODEL_BYTES / 1e6} MB).`);
+  const ct = req.headers.get('content-type') ?? '';
+  if (ct.startsWith('multipart/form-data')) {
+    const form = await req.formData();
+    const f = [...form.values()].find((v): v is File => typeof v !== 'string');
+    if (!f) throw new ModelError('Geen bestand in het formulier.');
+    return Buffer.from(await f.arrayBuffer());
+  }
+  return Buffer.from(await req.arrayBuffer());
+}
+app.post('/api/upload/:token', async (c) => {
+  setActor('Claude', 'model geüpload');
+  const it = redeemUploadTicket(c.req.param('token'), await readGlb(c.req.raw));
+  const s = it.recipe.size;
+  return c.json({ item_id: it.id, name: it.name, size_cm: `${Math.round(s.width * 100)} × ${Math.round(s.depth * 100)} × ${Math.round(s.height * 100)}`, triangles: it.model?.triangles }, 201);
 });
 
 // ---------- vanaf hier ingelogd ----------
@@ -118,10 +151,33 @@ app.use('/api/*', async (c, next) => {
 
 app.post('/api/items', async (c) => c.json(createItem(await c.req.json(), c.get('user').id), 201));
 app.put('/api/items/:id', async (c) => {
-  const it = updateItem(c.req.param('id'), await c.req.json());
+  const body = await c.req.json();
+  // een nieuw recept vervangt het 3D-model
+  if (body?.recipe) clearModel(c.req.param('id'));
+  const it = updateItem(c.req.param('id'), body);
   return it ? c.json(it) : c.json({ error: 'Niet gevonden' }, 404);
 });
-app.delete('/api/items/:id', (c) => (deleteItem(c.req.param('id')) ? c.body(null, 204) : c.json({ error: 'Niet gevonden' }, 404)));
+app.delete('/api/items/:id', (c) => (deleteItemWithModel(c.req.param('id')) ? c.body(null, 204) : c.json({ error: 'Niet gevonden' }, 404)));
+
+// 3D-modellen (GLB)
+app.get('/api/models/:file', (c) => {
+  const buf = readModelFile(c.req.param('file'));
+  if (!buf) return c.json({ error: 'Niet gevonden' }, 404);
+  c.header('Content-Type', 'model/gltf-binary');
+  c.header('Cache-Control', 'private, max-age=31536000, immutable');
+  return c.body(new Uint8Array(buf));
+});
+app.post('/api/models', async (c) => {
+  const name = c.req.query('name')?.trim() || 'Nieuw model';
+  const cat = c.req.query('category');
+  const category = (CATEGORIES as readonly string[]).includes(cat ?? '') ? (cat as Category) : 'overig';
+  return c.json(saveModel(await readGlb(c.req.raw), { name, category, source: 'upload' }, c.get('user').id), 201);
+});
+app.post('/api/items/:id/model', async (c) => c.json(saveModel(await readGlb(c.req.raw), { itemId: c.req.param('id'), source: 'upload' }, c.get('user').id)));
+app.put('/api/items/:id/model', async (c) => {
+  const b = await c.req.json();
+  return c.json(updateModelSettings(c.req.param('id'), { scale: b.scale === undefined ? undefined : Number(b.scale), rotation: b.rotation === undefined ? undefined : Number(b.rotation) }));
+});
 
 // varianten per kamer
 app.post('/api/variants', async (c) => {

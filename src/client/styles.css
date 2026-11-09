@@ -326,6 +326,11 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .consent-list { margin: 4px 0; padding-left: 18px; color: var(--ink); display: grid; gap: 4px; font-size: 13.5px; }
 .consent-list li::marker { color: var(--sage); }
 .render-mode .hint, .render-mode .topbar { display: none; }
+.stage-label { position: absolute; left: 18px; top: 14px; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 10px; background: rgba(20, 22, 24, 0.78); color: #f3f1ec; font: 13px/1.35 Inter, system-ui, sans-serif; pointer-events: none; }
+.stage-label strong { font-weight: 600; font-size: 14px; }
+.model-info { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; background: rgba(166, 216, 184, 0.08); border: 1px solid rgba(166, 216, 184, 0.2); font-size: 13px; }
+.file-drop { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed rgba(255, 255, 255, 0.25); border-radius: 10px; cursor: pointer; text-align: center; font-size: 13px; }
+.file-drop input { display: none; }
 
 /* ---------- indelingen ---------- */
 .varbtn { border-radius: 999px !important; padding: 9px 16px !important; color: var(--mint) !important; }
@@ -417,3 +422,5 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   .sel-actions button { flex: 1; }
   .hint { display: none; }
 }
+
+.badge.b-model { background: rgba(166, 216, 184, 0.16); color: #bfe3cb; }

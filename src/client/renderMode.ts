@@ -1,5 +1,8 @@
 /** Parameters als de app geopend wordt door de server om een afbeelding te maken (?render=…). */
 export interface RenderParams {
+  /** voorvertoning van één meubel */
+  item?: string;
+  elevation?: number;
   level: number;
   room?: string;
   camera: 'iso' | 'persp';
