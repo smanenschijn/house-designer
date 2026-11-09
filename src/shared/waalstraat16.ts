@@ -70,12 +70,12 @@ function stairs(width: number, run: number, rise: number, steps: number): Recipe
     const x = run / 2 - going * (i + 0.5);
     const top = r * (i + 1);
     parts.push(box('trede', [going + 0.02, 0.04, width], [x, top - 0.02, 0]));
-    parts.push(box('stoot', [0.02, r, width], [x + going / 2, top - r / 2, 0]));
+    parts.push(box('stoot', [0.02, r, width - 0.002], [x + going / 2, top - r / 2, 0]));
   }
   // trapboom aan beide kanten
   const len = Math.hypot(run, rise);
   const ang = (Math.atan2(rise, run) * 180) / Math.PI;
-  for (const zz of [-width / 2 + 0.02, width / 2 - 0.02])
+  for (const zz of [-width / 2 + 0.019, width / 2 - 0.019])
     parts.push({ shape: 'box', material: 'trede', size: [len, 0.25, 0.04], position: [0, rise / 2 - 0.05, zz], rotation: [0, 0, -ang] });
   return fixedRecipe(run, width, rise, { trede: M.trede, stoot: M.witMat }, parts);
 }
@@ -175,8 +175,8 @@ function kapconstructie(id: string, x0: number, x1: number, z0: number, z1: numb
   const cz = (z0 + z1) / 2;
   const parts: Part[] = [];
   // randbalken
-  parts.push(box('hout', [w - 0.06, 0.2, 0.08], [0, top - 0.12, -d / 2 + 0.07]));
-  parts.push(box('hout', [w - 0.06, 0.2, 0.08], [0, top - 0.12, d / 2 - 0.07]));
+  parts.push(box('hout', [w - 0.064, 0.2, 0.08], [0, top - 0.12, -d / 2 + 0.07]));
+  parts.push(box('hout', [w - 0.064, 0.2, 0.08], [0, top - 0.12, d / 2 - 0.07]));
   parts.push(box('hout', [0.08, 0.2, d - 0.06], [-w / 2 + 0.07, top - 0.12, 0]));
   parts.push(box('hout', [0.08, 0.2, d - 0.06], [w / 2 - 0.07, top - 0.12, 0]));
   // gordingen om de 60 cm
@@ -186,8 +186,8 @@ function kapconstructie(id: string, x0: number, x1: number, z0: number, z1: numb
   const bt = 0.03;
   const bh = 0.3;
   const by = top + 0.08;
-  parts.push(box('boei', [w + 2 * bt, bh, bt], [0, by, -d / 2 - bt / 2]));
-  parts.push(box('boei', [w + 2 * bt, bh, bt], [0, by, d / 2 + bt / 2]));
+  parts.push(box('boei', [w + 2 * bt - 0.004, bh, bt], [0, by, -d / 2 - bt / 2]));
+  parts.push(box('boei', [w + 2 * bt - 0.004, bh, bt], [0, by, d / 2 + bt / 2]));
   parts.push(box('boei', [bt, bh, d], [-w / 2 - bt / 2, by, 0]));
   parts.push(box('boei', [bt, bh, d], [w / 2 + bt / 2, by, 0]));
   parts.push(box('kap', [w + 0.1, 0.03, 0.06], [0, by + bh / 2 + 0.015, -d / 2 - 0.01]));
@@ -215,8 +215,8 @@ function boeideel(x0: number, x1: number, z0: number, z1: number, y: number): Re
   const h = 0.28;
   const yy = y + 0.1;
   return fixedRecipe(w, d, y + 0.3, { boei: { color: '#a98058', finish: 'wood' } }, [
-    box('boei', [w + 2 * t, h, t], [0, yy, -d / 2 - t / 2]),
-    box('boei', [w + 2 * t, h, t], [0, yy, d / 2 + t / 2]),
+    box('boei', [w + 2 * t - 0.004, h, t], [0, yy, -d / 2 - t / 2]),
+    box('boei', [w + 2 * t - 0.004, h, t], [0, yy, d / 2 + t / 2]),
     box('boei', [t, h, d], [-w / 2 - t / 2, yy, 0]),
     box('boei', [w - 0.1, 0.2, 0.08], [0, y - 0.1, d / 2 - 0.05]),
     box('boei', [w - 0.1, 0.2, 0.08], [0, y - 0.1, -d / 2 + 0.05]),
@@ -267,14 +267,14 @@ const bg: Level = {
       { kind: 'window', at: 4.32, width: 1.0, height: 2.2, sill: 0 }, // tot de vloer
     ]),
     // berging (aangebouwd, steen)
-    { id: 'berging-achter', a: [-0.28, -3.355], b: [2.76, -3.355], thickness: 0.1, outside: [0, -1], height: 2.6 },
+    { id: 'berging-achter', a: [-0.29, -3.355], b: [2.76, -3.355], thickness: 0.1, outside: [0, -1], height: 2.6 },
     {
-      id: 'berging-links', a: [-0.235, -3.405], b: [-0.235, -0.28], thickness: 0.1, outside: [-1, 0], height: 2.6,
-      openings: [{ kind: 'door', at: -0.985 + 3.405, width: 0.85, height: 2.1 }],
+      id: 'berging-links', a: [-0.235, -3.305], b: [-0.235, -0.28], thickness: 0.1, outside: [-1, 0], height: 2.6,
+      openings: [{ kind: 'door', at: -0.985 + 3.305, width: 0.85, height: 2.1 }],
     },
     {
-      id: 'berging-rechts', a: [2.705, -3.405], b: [2.705, -0.28], thickness: 0.1, outside: [1, 0], height: 2.6,
-      openings: [{ kind: 'door', at: -1.45 + 3.405, width: 0.84, height: 2.1 }],
+      id: 'berging-rechts', a: [2.705, -3.305], b: [2.705, -0.28], thickness: 0.1, outside: [1, 0], height: 2.6,
+      openings: [{ kind: 'door', at: -1.45 + 3.305, width: 0.84, height: 2.1 }],
     },
     // hal, meterkast, toilet
     int('hal-boven', [0, 4.89], [2.6, 4.89]),
@@ -381,8 +381,8 @@ const zolder: Level = {
   storeyHeight: 3.4,
   ceilingHeight: roofUnderside(RIDGE_Z) - ATTIC_FLOOR,
   walls: [
-    { id: 'z-links', a: [-0.14, Z_OLD_BACK - T_EXT], b: [-0.14, 11.78], thickness: T_EXT, outside: [-1, 0], topByZ: attTop(ROOF_T) },
-    { id: 'z-rechts', a: [5.67, Z_OLD_BACK - T_EXT], b: [5.67, 11.78], thickness: T_EXT, outside: [1, 0], party: true, topByZ: attTop(ROOF_T) },
+    { id: 'z-links', a: [-0.14, Z_OLD_BACK - T_EXT], b: [-0.14, 11.78], thickness: T_EXT, outside: [-1, 0], topByZ: attTop(ROOF_T - 0.01) },
+    { id: 'z-rechts', a: [5.67, Z_OLD_BACK - T_EXT], b: [5.67, 11.78], thickness: T_EXT, outside: [1, 0], party: true, topByZ: attTop(ROOF_T - 0.01) },
     {
       id: 'z-overloop', a: [2.515, Z_OLD_BACK], b: [2.515, 6.62], thickness: 0.09, topByZ: attTop(0),
       openings: [{ kind: 'door', at: 6.235 - Z_OLD_BACK, width: 0.77, height: 2.0 }],
@@ -506,12 +506,12 @@ export const waalstraat16: House = {
       fx('carport-p2', 'Carportpaal', paal(2.45), -4.1, 6.4),
       fx('carport-p3', 'Carportpaal', paal(2.45), -4.1, 9.2),
       fx('carport-boei', 'Boeideel carport', boeideel(-4.25, -0.28, 3.4, 9.3, 2.45), -2.265, 6.35),
-      fx('overkapping-p1', 'Paal overkapping', paal(2.5), 0.41, -13.33),
-      fx('overkapping-p2', 'Paal overkapping', paal(2.5), 0.41, -10.17),
-      fx('overkapping-p3', 'Paal overkapping', paal(2.5), 2.72, -10.17),
-      fx('overkapping-p4', 'Paal overkapping', paal(2.5), 3.36, -7.1),
-      fx('overkapping-p5', 'Paal overkapping', paal(2.5), 5.74, -7.1),
-      fx('overkapping-p6', 'Paal overkapping', paal(2.5), 5.74, -10.17),
+      fx('overkapping-p1', 'Paal overkapping', paal(2.42), 0.41, -13.33),
+      fx('overkapping-p2', 'Paal overkapping', paal(2.42), 0.41, -10.17),
+      fx('overkapping-p3', 'Paal overkapping', paal(2.42), 2.72, -10.17),
+      fx('overkapping-p4', 'Paal overkapping', paal(2.42), 3.36, -7.1),
+      fx('overkapping-p5', 'Paal overkapping', paal(2.42), 5.74, -7.1),
+      fx('overkapping-p6', 'Paal overkapping', paal(2.42), 5.74, -10.17),
       kapconstructie('overkapping-a', 0.34, 5.81, -13.4, -10.1, [[0.41, -13.33], [0.41, -10.17], [2.72, -10.17]]),
       kapconstructie('overkapping-b', 2.65, 5.81, -10.1, -7.03, [[3.36, -7.1], [5.74, -7.1], [5.74, -10.17]]),
       fx('tuinberging', 'Houten berging', tuinberging, 4.55, -12.42),

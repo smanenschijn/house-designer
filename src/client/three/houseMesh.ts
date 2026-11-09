@@ -240,12 +240,14 @@ export function buildSkirting(level: Level): THREE.BufferGeometry | null {
       .map((o) => [o.at - o.width / 2, o.at + o.width / 2] as [number, number])
       .sort((a, b) => a[0] - b[0]);
     const segs: [number, number][] = [];
-    let u = 0;
+    // 2 mm van muureinden en deuropeningen af: anders valt het kopvlak samen met de dagkant of de dwarsmuur (z-fighting)
+    const E = 0.002;
+    let u = E;
     for (const [g0, g1] of gaps) {
-      if (g0 > u) segs.push([u, g0]);
-      u = Math.max(u, g1);
+      if (g0 - E > u) segs.push([u, g0 - E]);
+      u = Math.max(u, g1 + E);
     }
-    if (u < f.len) segs.push([u, f.len]);
+    if (u < f.len - E) segs.push([u, f.len - E]);
     for (const side of [1, -1]) {
       if (side === out) continue; // buitenkant: geen plint
       if (w.id.startsWith('berging')) continue;
@@ -303,7 +305,8 @@ function openingMesh(o: Opening, h: number, clipped: boolean, t: number, out: nu
   const outerZ = (out === 0 ? t / 2 : out * t / 2) - s;
 
   if (o.kind === 'window' || o.kind === 'glassDoor') {
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(o.width - 0.04, h, 0.012), glassMaterial);
+    // glas 2 mm binnen de kozijnregels (boven- en onderkant vielen samen)
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(o.width - 0.04, h - 0.004, 0.012), glassMaterial);
     glass.position.y = h / 2;
     glass.renderOrder = 2;
     g.add(glass);
@@ -317,7 +320,8 @@ function openingMesh(o: Opening, h: number, clipped: boolean, t: number, out: nu
     if (o.kind === 'window' && out !== 0 && (o.sill ?? 0) > 0.3) {
       // vensterbank binnen (steen, steekt 4 cm uit) en waterslag buiten
       const inDepth = Math.abs(innerZ) + 0.04;
-      box(o.width + 0.08, 0.025, inDepth, 0, -0.0125, innerZ / 2 - out * 0.02, innerSillMaterial);
+      // 2 mm boven de borstwering: anders vallen de bovenkanten samen
+      box(o.width + 0.08, 0.025, inDepth, 0, -0.0105, innerZ / 2 - out * 0.02, innerSillMaterial);
       const outDepth = Math.abs(outerZ) + 0.05;
       box(o.width + 0.04, 0.02, outDepth, 0, -0.03, outerZ / 2 + out * 0.025, outerSillMaterial);
     }
@@ -486,7 +490,8 @@ function gableRoof(r: GableRoof, material: THREE.Material, cast: boolean): THREE
       m.rotation.x = -slope;
       g.add(m);
     }
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(depth, 0.08, 0.25), new THREE.MeshStandardMaterial({ color: '#3a3533', roughness: 0.8 }));
+    // 3 mm korter dan het dak: kopvlakken van nok en dak vallen anders samen (z-fighting)
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(depth - 0.006, 0.08, 0.25), new THREE.MeshStandardMaterial({ color: '#3a3533', roughness: 0.8 }));
     ridge.position.set((r.x0 + r.x1) / 2, r.underside(r.ridgeZ) + T + 0.02, r.ridgeZ);
     g.add(ridge);
   }

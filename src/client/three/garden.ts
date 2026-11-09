@@ -84,21 +84,29 @@ export function buildRaised(items: Raised[]): THREE.Group {
     const edgeMat = r.edge === 'stapelblok' ? stapelblokMaterial : sleeperMaterial;
     const rim = r.edge === 'stapelblok' ? 0.12 : 0.1;
     const n = r.polygon.length;
+    // binnenrand: in verstek, zodat de stroken bovenop elkaar in de hoeken niet overlappen (geen z-fighting)
+    const inwardOf = (i: number): V2 => {
+      const a = r.polygon[i];
+      const b = r.polygon[(i + 1) % n];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      return ccw ? [-(b[1] - a[1]) / len, (b[0] - a[0]) / len] : [(b[1] - a[1]) / len, -(b[0] - a[0]) / len];
+    };
+    const inner: V2[] = r.polygon.map((p, i) => {
+      const n0 = inwardOf((i - 1 + n) % n);
+      const n1 = inwardOf(i);
+      const k = rim / Math.max(0.2, 1 + n0[0] * n1[0] + n0[1] * n1[1]);
+      return [p[0] + (n0[0] + n1[0]) * k, p[1] + (n0[1] + n1[1]) * k];
+    });
     for (let i = 0; i < n; i++) {
       const a = r.polygon[i];
       const b = r.polygon[(i + 1) % n];
       // buitenkant
       g.add(mesh(quad(a, b, -0.03, r.height, ccw), edgeMat));
       // rand bovenop: strook naar binnen
-      const dx = b[0] - a[0];
-      const dz = b[1] - a[1];
-      const len = Math.hypot(dx, dz);
-      const inward: V2 = ccw ? [-dz / len, dx / len] : [dz / len, -dx / len];
-      const strip: V2[] = [a, b, [b[0] + inward[0] * rim, b[1] + inward[1] * rim], [a[0] + inward[0] * rim, a[1] + inward[1] * rim]];
-      g.add(mesh(cap(strip, r.height + 0.002), edgeMat, false));
+      const ia = inner[i];
+      const ib = inner[(i + 1) % n];
+      g.add(mesh(cap([a, b, ib, ia], r.height + 0.002), edgeMat, false));
       // binnenkant van de rand (zichtbaar boven de aarde)
-      const ia: V2 = [a[0] + inward[0] * rim, a[1] + inward[1] * rim];
-      const ib: V2 = [b[0] + inward[0] * rim, b[1] + inward[1] * rim];
       g.add(mesh(quad(ia, ib, r.height - 0.06, r.height, !ccw), edgeMat, false));
     }
     g.add(mesh(cap(r.polygon, r.height - 0.06), floorMaterial(r.top), false));
@@ -121,7 +129,7 @@ export function buildGardenFences(fences: Fence[]): THREE.Group {
     };
     if (f.style === 'muur') {
       along(0.5, f.height / 2, mesh(meterBox(len, f.height, 0.22), gardenBrickMaterial));
-      along(0.5, f.height + 0.03, mesh(new THREE.BoxGeometry(len + 0.04, 0.06, 0.28), copingMaterial));
+      along(0.5, f.height + 0.03, mesh(new THREE.BoxGeometry(len + 0.04, 0.06, 0.27), copingMaterial));
       continue;
     }
     along(0.5, f.height / 2 + 0.03, mesh(meterBox(len, f.height - 0.06, 0.03), fencePlankMaterial));
