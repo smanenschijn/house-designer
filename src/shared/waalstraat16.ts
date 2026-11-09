@@ -258,13 +258,13 @@ const bg: Level = {
       { kind: 'window', at: 2.53 + 0.28, width: 0.92, height: 1.15, sill: 1.05 }, // raam boven schiereiland
       { kind: 'frontDoor', at: 6.11 + 0.28, width: 0.9, height: 2.3 }, // voordeur onder carport
       { kind: 'window', at: 6.86 + 0.28, width: 0.6, height: 2.3, sill: 0 }, // glazen zijlicht naast voordeur
-      { kind: 'window', at: 10.67 + 0.28, width: 1.66, height: 1.6, sill: 0.6 }, // hoekraam woonkamer
+      { kind: 'window', at: 10.67 + 0.28, width: 1.66, height: 2.2, sill: 0 }, // hoekraam woonkamer (tot de vloer)
     ]),
     ext('bg-rechts', [5.67, -0.28], [5.67, 11.78], [1, 0], [], true),
     ext('bg-achter', [0, -0.14], [W, -0.14], [0, -1], [{ kind: 'glassDoor', at: 4.145, width: 2.69, height: 2.3 }]),
     ext('bg-voor', [0, 11.64], [W, 11.64], [0, 1], [
-      { kind: 'window', at: 1.0, width: 2.0, height: 1.6, sill: 0.6 }, // hoekraam (voorzijde)
-      { kind: 'window', at: 4.32, width: 1.0, height: 1.6, sill: 0.6 },
+      { kind: 'window', at: 1.0, width: 2.0, height: 2.2, sill: 0 }, // hoekraam (voorzijde, tot de vloer)
+      { kind: 'window', at: 4.32, width: 1.0, height: 2.2, sill: 0 }, // tot de vloer
     ]),
     // berging (aangebouwd, steen)
     { id: 'berging-achter', a: [-0.28, -3.355], b: [2.76, -3.355], thickness: 0.1, outside: [0, -1], height: 2.6 },
