@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { AdaptiveDpr, OrbitControls, OrthographicCamera, PerspectiveCamera, Sky } from '@react-three/drei';
+import { OrbitControls, OrthographicCamera, PerspectiveCamera, Sky } from '@react-three/drei';
 import { EffectComposer, N8AO, SMAA } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -189,7 +189,6 @@ function CameraRig({ house }: { house: House }) {
       minDistance={1.5}
       maxDistance={120}
       screenSpacePanning={false}
-      regress
       zoomSpeed={persp ? 2.2 : 1}
       mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
       touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
@@ -243,7 +242,7 @@ function SunAndSky({ house }: { house: House }) {
 
   return (
     <>
-      {camMode !== 'iso' && <Sky distance={4500} sunPosition={[dir.x, dir.y, dir.z]} turbidity={6} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.8} />}
+      {camMode !== 'iso' && <Sky distance={4000} sunPosition={[dir.x, dir.y, dir.z]} turbidity={6} rayleigh={1.2} mieCoefficient={0.004} mieDirectionalG={0.8} />}
       <hemisphereLight args={['#dfeaf5', '#9a8f7c', 0.15 + 0.55 * day]} />
       <primitive object={target} />
       <directionalLight
@@ -306,16 +305,17 @@ export function Scene({ house }: { house: House }) {
       shadows
       // alleen tekenen als er iets verandert; tijdens rondlopen (en voor afbeeldingen) continu
       frameloop={camMode === 'walk' || renderParams ? 'always' : 'demand'}
-      dpr={renderParams ? 1 : coarse ? [1, 1.5] : [1, 2]}
-      performance={{ min: 0.55, debounce: 250 }}
+      // vaste resolutie: geen wisselingen tijdens bewegen (die gaven flikkering)
+      dpr={renderParams ? 1 : coarse ? [1, 1.5] : [1, 1.75]}
       gl={{ antialias: false, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
       onContextMenu={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
     >
       <OrthographicCamera makeDefault={camMode === 'iso'} position={[-40, 50, 60]} near={1} far={600} zoom={40} />
       <OrthographicCamera makeDefault={camMode === 'top'} position={[0, 80, 0]} near={1} far={600} zoom={40} />
-      <PerspectiveCamera makeDefault={camMode === 'persp'} position={[-20, 20, 30]} fov={FOV} near={0.1} far={6000} />
-      <PerspectiveCamera makeDefault={camMode === 'walk'} position={[0, 1.6, 0]} fov={72} near={0.05} far={6000} />
+      {/* near/far zo krap mogelijk: betere dieptenauwkeurigheid, geen z-fighting op afstand */}
+      <PerspectiveCamera makeDefault={camMode === 'persp'} position={[-20, 20, 30]} fov={FOV} near={0.3} far={5000} />
+      <PerspectiveCamera makeDefault={camMode === 'walk'} position={[0, 1.6, 0]} fov={72} near={0.08} far={5000} />
       {camMode === 'walk' ? <WalkControls house={house} /> : <CameraRig house={house} />}
       {camMode !== 'walk' && !renderParams && <KeyboardNav />}
       <SunAndSky house={house} />
@@ -327,8 +327,6 @@ export function Scene({ house }: { house: House }) {
       </Suspense>
       <Effects />
       <ShadowUpdater />
-      {/* tijdens camerabewegingen tijdelijk lagere resolutie */}
-      {!renderParams && <AdaptiveDpr />}
       <RenderReady />
     </Canvas>
   );

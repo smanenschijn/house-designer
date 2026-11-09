@@ -509,7 +509,15 @@ export function wallpaperMaterial(w: Extract<WallFinish, { kind: 'wallpaper' }>)
   const map = tex.clone();
   map.needsUpdate = true;
   map.repeat.set(1 / def.tile[0], 1 / def.tile[1]);
-  const m = new THREE.MeshStandardMaterial({ map, roughness: w.pattern === 'linnen' ? 0.98 : 0.85, side: THREE.DoubleSide });
+  // polygonOffset: behang wint altijd van de muur erachter (geen z-fighting)
+  const m = new THREE.MeshStandardMaterial({
+    map,
+    roughness: w.pattern === 'linnen' ? 0.98 : 0.85,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
   wallpaperCache.set(key, m);
   return m;
 }
