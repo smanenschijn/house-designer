@@ -28,12 +28,17 @@ export function findCollisions(house: House, levelId: string, placements: Placem
     .map((p) => ({ p, it: itemMap.get(p.itemId) }))
     .filter((x): x is { p: Placement; it: Item } => !!x.it && x.it.recipe.size.height > 0.03);
   const polys = list.map(({ p, it }) => corners(placementRect(p, it)));
-  const obstacles: { name: string; poly: V2[] }[] = level.walls.flatMap((w) => wallRects(w).map((poly) => ({ name: 'muur', poly })));
+  // obstakels met hun hoogtebereik boven de vloer: een tv boven een zwevende kast botst niet
+  const obstacles: { name: string; poly: V2[]; y0: number; y1: number }[] = level.walls.flatMap((w) =>
+    wallRects(w).map((poly) => ({ name: 'muur', poly, y0: 0, y1: Infinity })),
+  );
   for (const fx of level.fixtures)
-    if ((fx.y ?? 0) < 1.0 && fx.recipe.size.height > 0.05)
+    if (fx.recipe.size.height > 0.05)
       obstacles.push({
         name: `vaste inbouw: ${fx.name}`,
         poly: corners({ x: fx.position[0], z: fx.position[1], hw: fx.recipe.size.width / 2, hd: fx.recipe.size.depth / 2, rot: fx.rotation ?? 0 }),
+        y0: fx.y ?? 0,
+        y1: (fx.y ?? 0) + fx.recipe.size.height,
       });
   const add = (id: string, what: string) => {
     const l = out.get(id) ?? [];
@@ -51,7 +56,11 @@ export function findCollisions(house: House, levelId: string, placements: Placem
         add(o.p.id, it.name);
       }
     }
-    for (const ob of obstacles) if (rectsOverlap(polys[i], ob.poly, 0.01)) add(p.id, ob.name);
+    const top = elev + it.recipe.size.height;
+    for (const ob of obstacles) {
+      if (elev >= ob.y1 - 0.01 || ob.y0 >= top - 0.01) continue; // boven of onder elkaar
+      if (rectsOverlap(polys[i], ob.poly, 0.01)) add(p.id, ob.name);
+    }
   });
   return out;
 }
