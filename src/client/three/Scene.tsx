@@ -11,6 +11,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { viewState } from '../viewState';
 import { roomEnvironment } from './environment';
 import { installDebugBridge } from './debug';
+import { Lamps } from './Lamps';
 import { renderParams } from '../renderMode';
 import { pendingModels } from './glbModel';
 import { FurnitureLayer } from './Furniture';
@@ -327,6 +328,7 @@ export function Scene({ house }: { house: House }) {
       {camMode === 'walk' ? <WalkControls house={house} /> : <CameraRig house={house} />}
       {camMode !== 'walk' && !renderParams && <KeyboardNav />}
       <SunAndSky house={house} />
+      <Lamps house={house} />
       <Suspense fallback={null}>
         <HouseView house={house} />
         <FurnitureLayer house={house} />

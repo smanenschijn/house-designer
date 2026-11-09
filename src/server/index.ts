@@ -15,6 +15,8 @@ import { waalstraat16 } from '../shared/waalstraat16';
 import { chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CATEGORIES, type Category } from '../shared/recipe';
+import { createShare, deleteShare, initShares, listShares, shareByToken } from './shares';
+import type { Item } from '../shared/recipe';
 import { MAX_MODEL_BYTES, ModelError, clearModel, deleteItemWithModel, readModelFile, redeemUploadTicket, saveModel, updateModelSettings } from './models';
 import {
   createItem,
@@ -43,6 +45,7 @@ if (process.getuid?.() === 0) {
 initAuth();
 initOAuth();
 initVariants(waalstraat16);
+initShares();
 ensureFirstUser();
 seedLibrary();
 
@@ -103,6 +106,34 @@ app.post('/api/upload/:token', async (c) => {
   return c.json({ item_id: it.id, name: it.name, size_cm: `${Math.round(s.width * 100)} × ${Math.round(s.depth * 100)} × ${Math.round(s.height * 100)}`, triangles: it.model?.triangles }, 201);
 });
 
+// ---------- meekijklink (alleen lezen, zonder account) ----------
+/** voor gasten: geen prijzen, notities, links of scripts */
+const guestItem = (it: Item): Item => ({
+  ...it,
+  meta: { status: it.meta.status },
+  createdBy: null,
+  model: it.model ? { ...it.model, script: null } : it.model,
+});
+app.get('/api/view/:token/state', (c) => {
+  const share = shareByToken(c.req.param('token'), true);
+  if (!share) return c.json({ error: 'Deze link werkt niet (meer).' }, 404);
+  c.header('Cache-Control', 'no-store');
+  return c.json({ label: share.label, items: listItems().map(guestItem), placements: listPlacements(), variants: listVariants(), active: activeMap(), version: getVersion() });
+});
+app.get('/api/view/:token/version', (c) => {
+  if (!shareByToken(c.req.param('token'))) return c.json({ error: 'Deze link werkt niet (meer).' }, 404);
+  c.header('Cache-Control', 'no-store');
+  return c.json({ version: getVersion() });
+});
+app.get('/api/view/:token/models/:file', (c) => {
+  if (!shareByToken(c.req.param('token'))) return c.json({ error: 'Deze link werkt niet (meer).' }, 404);
+  const buf = readModelFile(c.req.param('file'));
+  if (!buf) return c.json({ error: 'Niet gevonden' }, 404);
+  c.header('Content-Type', 'model/gltf-binary');
+  c.header('Cache-Control', 'private, max-age=86400');
+  return c.body(new Uint8Array(buf));
+});
+
 // ---------- vanaf hier ingelogd ----------
 app.use('/api/*', requireUser);
 app.route('/api/account', accountRoutes);
@@ -110,6 +141,17 @@ app.route('/api/users', userRoutes);
 app.route('/api/oauth', oauthApp);
 
 app.get('/api/me', (c) => c.json(c.get('user')));
+
+// meekijklinks beheren
+app.get('/api/shares', (c) => c.json(listShares()));
+app.post('/api/shares', async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const days = b.days === null || b.days === undefined ? null : Number(b.days);
+  if (days !== null && (!Number.isFinite(days) || days < 1 || days > 3650)) return c.json({ error: 'Geldigheid: 1 tot 3650 dagen, of onbeperkt.' }, 400);
+  const { share, token } = createShare(String(b.label ?? ''), days, c.get('user').id);
+  return c.json({ ...share, token }, 201);
+});
+app.delete('/api/shares/:id', (c) => (deleteShare(c.req.param('id')) ? c.body(null, 204) : c.json({ error: 'Niet gevonden' }, 404)));
 
 // live-updates (Server-Sent Events)
 app.get('/api/events', (c) => {

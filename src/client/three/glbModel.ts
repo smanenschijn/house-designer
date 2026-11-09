@@ -1,3 +1,4 @@
+import { viewToken } from '../viewMode';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { ItemModel } from '../../shared/recipe';
@@ -14,7 +15,7 @@ const sources = new Map<string, Promise<THREE.Group>>();
 let pending = 0;
 const listeners = new Set<() => void>();
 
-export const modelUrl = (m: Pick<ItemModel, 'file'>) => `/api/models/${m.file}`;
+export const modelUrl = (m: Pick<ItemModel, 'file'>) => (viewToken ? `/api/view/${viewToken}/models/${m.file}` : `/api/models/${m.file}`);
 
 /** aantal modellen dat nog laadt (de rendermodus wacht hierop) */
 export const pendingModels = () => pending;

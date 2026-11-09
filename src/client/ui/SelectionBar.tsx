@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { House } from '../../shared/house';
 import { roomAt } from '../../shared/placement';
+import { clearance, clearanceWarnings } from '../../shared/clearance';
+import { visiblePlacements } from '../store';
 import { useApp } from '../store';
 import { keyState } from '../keyState';
 import { Icon } from './Icon';
@@ -12,6 +14,14 @@ export function SelectionBar({ house }: { house: House }) {
   const item = useApp((s) => s.items.find((i) => i.id === placement?.itemId));
   const setPanel = useApp((s) => s.setPanel);
   const snap = useApp((s) => s.snap);
+  const placements = useApp((s) => s.placements);
+  const variants = useApp((s) => s.variants);
+  const active = useApp((s) => s.active);
+  const items = useApp((s) => s.items);
+  const warnings = useMemo(() => {
+    if (!placement) return [];
+    return clearanceWarnings(clearance(house, placement, visiblePlacements({ placements, variants, active }), items));
+  }, [house, placement, placements, variants, active, items]);
   const setSnap = useApp((s) => s.setSnap);
 
   useEffect(() => {
@@ -81,6 +91,11 @@ export function SelectionBar({ house }: { house: House }) {
           {fmtSize(item)}
           {room ? ` · ${room.name}` : ''} · {Math.round(placement.rotation)}°
         </span>
+        {warnings.map((w) => (
+          <span key={w} className="sel-warn">
+            {w}
+          </span>
+        ))}
       </div>
       <div className="sel-actions">
         <button onClick={() => rotateSelected(90)} title="Draai 90° (R)">

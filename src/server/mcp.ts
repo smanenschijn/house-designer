@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkRecipe, describeHouse, findCollisions, findRoom, roomCenter, roomOf } from '../shared/analysis';
+import { clearance, clearanceWarnings } from '../shared/clearance';
 import { snapToWalls } from '../shared/placement';
 import { CATEGORIES, FINISHES, RecipeSchema, STATUSES, type Item, type Recipe } from '../shared/recipe';
 import { TEMPLATES, TEMPLATE_MAP, buildFromTemplate } from '../shared/templates';
@@ -56,7 +57,7 @@ Antwoord de gebruiker in het Nederlands.`;
 const RECIPE_GUIDE = `Recept (JSON), alles in meters:
 - size: { width (x), depth (z), height (y) } = buitenmaten van het meubel.
 - Oorsprong = midden van de ONDERKANT. x van -width/2 tot +width/2, z van -depth/2 tot +depth/2, y van 0 tot height. De VOORKANT (zitkant, deuren) wijst naar +z.
-- materials: { naam: { color: "#rrggbb", finish } }, finish ∈ ${FINISHES.join(', ')}. Optioneel opacity (0–1).
+- materials: { naam: { color: "#rrggbb", finish } }, finish ∈ ${FINISHES.join(', ')}. Optioneel opacity (0–1). Gebruik finish "light" voor lampenkappen/lichtbronnen: die geven ’s avonds echt licht (render_view met time na zonsondergang, bijv. "22:00").
 - parts: lijst onderdelen met position = MIDDEN van het onderdeel [x,y,z], optioneel rotation [rx,ry,rz] in graden, en material (naam uit materials):
   • box: size [x,y,z], optioneel radius (afronding, bv. 0.03 voor kussens)
   • cylinder: radius (of radiusTop/radiusBottom), height (langs y)
@@ -111,7 +112,10 @@ function placementInfo(pid: string) {
   const it = getItem(p.itemId);
   const level = house.levels.find((l) => l.id === p.levelId)!;
   const room = roomOf(level, p.x, p.z);
-  const collisions = findCollisions(house, p.levelId, visible(), listItems()).get(p.id) ?? [];
+  const all = listItems();
+  const collisions = findCollisions(house, p.levelId, visible(), all).get(p.id) ?? [];
+  const cl = clearance(house, p, visible(), all);
+  const warnings = clearanceWarnings(cl);
   const variant = getVariant(p.variantId);
   return {
     placement_id: p.id,
@@ -125,6 +129,9 @@ function placementInfo(pid: string) {
     rotation: Math.round(p.rotation),
     variant: variant ? `${variant.name}${isPlacementVisible(p.variantId, listVariants(), activeMap()) ? '' : ' (niet actief)'}` : 'buiten',
     collisions: collisions.length ? collisions : 'geen',
+    // vrije ruimte per zijkant (voor/achter/links/rechts van het meubel zelf) en waarschuwingen
+    free_space_cm: Object.fromEntries(cl.gaps.map((g) => [g.side, `${Math.round(g.dist * 100)} tot ${g.obstacle}`])),
+    warnings: warnings.length ? warnings : 'geen',
   };
 }
 
@@ -345,7 +352,7 @@ export function buildMcpServer(user: PublicUser) {
       description:
         'Plaatst een meubel uit de bibliotheek in het huis. Geef een kamer (dan midden in de kamer, tenzij x/z gegeven) of exacte coördinaten x/z in meters (zie get_house). ' +
         'rotation in graden: 0 = voorkant naar +z (straatkant), 90 = naar +x (zuid/buren), 180 = naar -z (tuin), 270 = naar -x (noord). ' +
-        'Met snap_to_wall (standaard aan) schuift het meubel strak tegen een muur als het daar binnen 25 cm van staat. Je krijgt botsingen terug.',
+        'Met snap_to_wall (standaard aan) schuift het meubel strak tegen een muur als het daar binnen 25 cm van staat. Je krijgt botsingen terug, de vrije ruimte per zijkant en waarschuwingen (voor een deur, doorgang < 60 cm; advies ≥ 70 cm).',
       inputSchema: {
         item_id: z.string(),
         room: z.string().optional().describe('kamernaam of id, bijv. "woonkamer"'),

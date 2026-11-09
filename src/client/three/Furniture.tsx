@@ -10,6 +10,7 @@ import { attempt, useApp, visiblePlacements } from '../store';
 import { buildRecipe, disposeGroup } from './recipeMesh';
 import { mergeByMaterial } from './merge';
 import { loadModelObject } from './glbModel';
+import { ClearanceOverlay } from './ClearanceOverlay';
 
 const DEG = Math.PI / 180;
 
@@ -112,6 +113,7 @@ export function FurnitureLayer({ house }: { house: House }) {
   const placements = useMemo(() => visiblePlacements({ placements: allPlacements, variants, active }), [allPlacements, variants, active]);
   const items = useApp((s) => s.items);
   const selectedId = useApp((s) => s.selectedId);
+  const editMode = useApp((s) => s.editMode);
   const activeIndex = level === 'all' ? house.levels.length - 1 : level;
   const activeLevelId = level === 'all' ? null : house.levels[level].id;
   const collisions = useCollisions(house, activeLevelId);
@@ -120,6 +122,8 @@ export function FurnitureLayer({ house }: { house: House }) {
   useFurnitureDrag(house, groupRef);
 
   return (
+    <>
+    <ClearanceOverlay house={house} />
     <group ref={groupRef}>
       {placements.map((p) => {
         const li = house.levels.findIndex((l) => l.id === p.levelId);
@@ -132,12 +136,13 @@ export function FurnitureLayer({ house }: { house: House }) {
             item={item}
             elevation={house.levels[li].elevation}
             selected={p.id === selectedId}
-            colliding={collisions.has(p.id)}
+            colliding={editMode && collisions.has(p.id)}
             interactive={p.levelId === activeLevelId}
           />
         );
       })}
     </group>
+    </>
   );
 }
 

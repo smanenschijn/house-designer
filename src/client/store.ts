@@ -4,11 +4,14 @@ import { isPlacementVisible, type ActiveMap, type Variant } from '../shared/vari
 import { api, type User } from './api';
 import type { WallMode } from './three/houseMesh';
 import { renderParams } from './renderMode';
+import { viewToken } from './viewMode';
 
 export type LevelView = number | 'all';
 
 interface AppState {
   user: User | null;
+  /** meekijkmodus: naam van de link (alleen lezen) */
+  viewer: string | null;
   users: User[];
   items: Item[];
   placements: Placement[];
@@ -25,7 +28,7 @@ interface AppState {
   selectedWall: { levelId: string; wallId: string; side: 1 | -1; roomId: string } | null;
   /** id van de plaatsing die nu gesleept wordt (niet overschrijven door verversen) */
   dragging: string | null;
-  panel: 'library' | 'editor' | 'account' | 'variants' | null;
+  panel: 'library' | 'editor' | 'account' | 'variants' | 'export' | null;
   editingItemId: string | null;
   /** azimut van de camera in radialen (voor cutaway en kompas) */
   azimuth: number;
@@ -45,6 +48,8 @@ interface AppState {
   notice: string | null;
   /** zon: datum (YYYY-MM-DD) en tijd in minuten na middernacht (lokale tijd) */
   sun: { date: string; minutes: number };
+  /** lampen: automatisch (na zonsondergang), altijd aan of uit */
+  lamps: 'auto' | 'on' | 'off';
 
   setUser: (u: User | null) => void;
   load: () => Promise<void>;
@@ -67,6 +72,7 @@ interface AppState {
   setOnline: (o: { id: string; name: string }[]) => void;
   setNotice: (n: string | null) => void;
   setSun: (patch: Partial<{ date: string; minutes: number }>) => void;
+  setLamps: (m: 'auto' | 'on' | 'off') => void;
 
   upsertItem: (it: Item) => void;
   removeItem: (id: string) => void;
@@ -95,6 +101,7 @@ function writePref(key: string, value: unknown) {
 
 export const useApp = create<AppState>((set, get) => ({
   user: null,
+  viewer: null,
   users: [],
   items: [],
   placements: [],
@@ -118,11 +125,12 @@ export const useApp = create<AppState>((set, get) => ({
   snap: true,
   camMode: renderParams?.camera ?? 'iso',
   showLabels: renderParams ? true : readPref('showLabels', true),
-  editMode: renderParams ? false : readPref('editMode', true),
+  editMode: renderParams || viewToken ? false : readPref('editMode', true),
   online: [],
   notice: null,
   focusRoom: renderParams?.room ?? null,
   roomFocus: null,
+  lamps: renderParams ? 'auto' : readPref<'auto' | 'on' | 'off'>('lamps', 'auto'),
   sun: {
     date: renderParams?.date ?? new Date().toISOString().slice(0, 10),
     minutes: renderParams?.time ? Number(renderParams.time.split(':')[0]) * 60 + Number(renderParams.time.split(':')[1]) : 14 * 60,
@@ -130,14 +138,19 @@ export const useApp = create<AppState>((set, get) => ({
 
   setUser: (user) => set({ user }),
   load: async () => {
+    if (viewToken) {
+      const v = await api.viewState(viewToken);
+      set({ viewer: v.label, items: v.items, placements: v.placements, users: [], variants: v.variants, active: v.active, version: v.version, loaded: true, editMode: false });
+      return;
+    }
     const s = await api.state();
     set({ items: s.items, placements: s.placements, users: s.users, variants: s.variants, active: s.active, version: s.version, loaded: true });
   },
   poll: async () => {
     if (get().dragging) return;
-    const { version } = await api.version();
+    const { version } = viewToken ? await api.viewVersion(viewToken) : await api.version();
     if (version !== get().version) {
-      const s = await api.state();
+      const s = viewToken ? { ...(await api.viewState(viewToken)), users: [] } : await api.state();
       if (get().dragging) return;
       const sel = get().selectedId;
       set({
@@ -179,6 +192,7 @@ export const useApp = create<AppState>((set, get) => ({
   setOnline: (online) => set({ online }),
   setNotice: (notice) => set({ notice }),
   setEditMode: (editMode) => {
+    if (viewToken && editMode) return; // meekijken: alleen lezen
     writePref('editMode', editMode);
     set(editMode ? { editMode } : { editMode, selectedId: null });
   },
@@ -187,6 +201,10 @@ export const useApp = create<AppState>((set, get) => ({
     set({ showLabels });
   },
   setSun: (patch) => set((s) => ({ sun: { ...s.sun, ...patch } })),
+  setLamps: (lamps) => {
+    writePref('lamps', lamps);
+    set({ lamps });
+  },
 
   upsertItem: (it) =>
     set((s) => ({ items: s.items.some((x) => x.id === it.id) ? s.items.map((x) => (x.id === it.id ? it : x)) : [it, ...s.items], version: s.version + 0 })),

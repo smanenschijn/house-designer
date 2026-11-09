@@ -16,6 +16,8 @@ const PRESETS: [string, string][] = [
 export function SunControl() {
   const sun = useApp((s) => s.sun);
   const setSun = useApp((s) => s.setSun);
+  const lamps = useApp((s) => s.lamps);
+  const setLamps = useApp((s) => s.setLamps);
   const [open, setOpen] = useState(false);
 
   const pos = useMemo(() => {
@@ -59,6 +61,35 @@ export function SunControl() {
             <button className="small" onClick={() => setSun({ date: new Date().toISOString().slice(0, 10) })}>
               Vandaag
             </button>
+          </div>
+          <div className="row presets">
+            <button className="small" onClick={() => setSun({ minutes: 8 * 60 })}>
+              Ochtend
+            </button>
+            <button className="small" onClick={() => setSun({ minutes: 14 * 60 })}>
+              Middag
+            </button>
+            <button className={`small ${!up ? 'on' : ''}`} onClick={() => setSun({ minutes: 22 * 60 })} title="Avondsfeer: lampen aan">
+              Avond
+            </button>
+          </div>
+          <div className="lamp-row">
+            <span className="muted small-text">
+              <Icon name="bulb" size={14} /> Lampen
+            </span>
+            <div className="seg mini">
+              {(
+                [
+                  ['auto', 'Auto', 'Aan na zonsondergang'],
+                  ['on', 'Aan', 'Altijd aan'],
+                  ['off', 'Uit', 'Altijd uit'],
+                ] as const
+              ).map(([m, label, title]) => (
+                <button key={m} className={lamps === m ? 'on' : ''} onClick={() => setLamps(m)} title={title}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <p className="muted small-text">Waalstraat 16, Nijverdal. Voorgevel op het westen, tuin op het oosten.</p>
         </div>

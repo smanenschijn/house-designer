@@ -238,6 +238,13 @@ export function floorMaterial(kind: FloorMaterial): THREE.MeshStandardMaterial {
 
 // ---------- meubels ----------
 const matCache = new Map<string, THREE.Material>();
+let lampGlow = 0.35;
+
+/** gloed van lampenkappen (afwerking “licht”): overdag zacht, ’s avonds fel */
+export function setLampGlow(intensity: number) {
+  lampGlow = intensity;
+  for (const [key, m] of matCache) if (key.split('|')[1] === 'light') (m as THREE.MeshStandardMaterial).emissiveIntensity = intensity;
+}
 
 export function recipeMaterial(def: MaterialDef | undefined): THREE.Material {
   const d: MaterialDef = def ?? { color: '#cccccc', finish: 'matte' };
@@ -284,7 +291,7 @@ export function recipeMaterial(def: MaterialDef | undefined): THREE.Material {
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.8, flatShading: true });
       break;
     case 'light':
-      m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: 0.35 });
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: lampGlow });
       break;
     default:
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });

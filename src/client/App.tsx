@@ -11,15 +11,23 @@ import { SelectionBar } from './ui/SelectionBar';
 import { TopBar } from './ui/TopBar';
 import { Consent } from './ui/Consent';
 import { VariantsPanel } from './ui/VariantsPanel';
+import { ExportPanel } from './ui/ExportPanel';
 import { WalkOverlay } from './ui/WalkOverlay';
 import { WallBar } from './ui/WallBar';
 import { FocusChip } from './ui/FocusChip';
 import { oauthQuery, renderParams } from './renderMode';
 import { ItemStage } from './three/ItemStage';
+import { viewToken } from './viewMode';
+import { ViewerApp } from './ui/ViewerApp';
 
 const house = waalstraat16;
 
 export function App() {
+  if (viewToken) return <ViewerApp token={viewToken} house={house} />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const user = useApp((s) => s.user);
   const loaded = useApp((s) => s.loaded);
   const panel = useApp((s) => s.panel);
@@ -111,6 +119,7 @@ export function App() {
       {panel === 'editor' && <ItemEditor />}
       {panel === 'account' && <AccountPanel />}
       {panel === 'variants' && <VariantsPanel house={house} />}
+      {panel === 'export' && <ExportPanel house={house} />}
       {camMode === 'walk' && <WalkOverlay />}
       {notice && <div className="notice glass">{notice}</div>}
       {error && (

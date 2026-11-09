@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { ApiError, api, type Account, type UserDetail } from '../api';
+import { ApiError, api, type Account, type ShareInfo, type UserDetail } from '../api';
 import { useApp } from '../store';
 import { Icon } from './Icon';
 
@@ -33,13 +33,19 @@ export function AccountPanel() {
   const [connections, setConnections] = useState<{ clientId: string; name: string; createdAt: string; lastUsed: string | null }[]>([]);
   const mcpUrl = `${location.origin}/mcp`;
   const [toast, setToast] = useState<string | null>(null);
+  const [shares, setShares] = useState<ShareInfo[]>([]);
+  const [shareLabel, setShareLabel] = useState('');
+  const [shareDays, setShareDays] = useState<string>('30');
+  /** zojuist gemaakte link (het token is alleen nu zichtbaar) */
+  const [newLink, setNewLink] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [a, u, cons] = await Promise.all([api.account(), api.users(), fetch('/api/oauth/connections').then((r) => r.json())]);
+      const [a, u, cons, sh] = await Promise.all([api.account(), api.users(), fetch('/api/oauth/connections').then((r) => r.json()), api.shares()]);
       setAccount(a);
       setUsers(u);
+      setShares(sh);
       setConnections(Array.isArray(cons) ? cons : []);
     } catch (e) {
       setErr(errText(e));
@@ -137,6 +143,68 @@ export function AccountPanel() {
               </button>
             </div>
           ))}
+        </section>
+
+        <section className="acc-section">
+          <h3>Meekijklinks</h3>
+          <p className="muted small-text">
+            Met een meekijklink kan iemand zonder account het huis bekijken, rondlopen en de plattegrond afdrukken, maar niets veranderen. Prijzen en notities
+            zien gasten niet.
+          </p>
+          <div className="share-new">
+            <div className="row">
+              <input placeholder="Voor wie? (bijv. Ouders)" value={shareLabel} onChange={(e) => setShareLabel(e.target.value)} maxLength={80} />
+              <select value={shareDays} onChange={(e) => setShareDays(e.target.value)} aria-label="Geldig">
+                <option value="7">1 week</option>
+                <option value="30">1 maand</option>
+                <option value="365">1 jaar</option>
+                <option value="">Onbeperkt</option>
+              </select>
+            </div>
+            <button
+              className="small primary"
+              onClick={() =>
+                run(async () => {
+                  const s = await api.createShare(shareLabel || 'Meekijken', shareDays ? Number(shareDays) : null);
+                  const link = `${location.origin}/kijk/${s.token}`;
+                  setNewLink(link);
+                  setShareLabel('');
+                  navigator.clipboard?.writeText(link).catch(() => undefined);
+                }, 'Link gemaakt en gekopieerd')
+              }
+            >
+              <Icon name="link" size={14} /> Maak link
+            </button>
+            {newLink && (
+              <div className="share-link">
+                <input readOnly value={newLink} onFocus={(e) => e.target.select()} aria-label="Nieuwe meekijklink" />
+                <button className="small" onClick={() => navigator.clipboard?.writeText(newLink).then(() => setToast('Link gekopieerd'), () => undefined)}>
+                  <Icon name="copy" size={14} /> Kopieer
+                </button>
+              </div>
+            )}
+            {newLink && <div className="muted small-text">Bewaar of deel de link nu: hij wordt niet nog eens getoond.</div>}
+          </div>
+          <div className="share-list">
+            {shares.map((s) => (
+              <div className="share-row" key={s.id}>
+                <div>
+                  <strong>{s.label}</strong>
+                  <div className="muted">
+                    {s.expiresAt ? (new Date(s.expiresAt) < new Date() ? 'Verlopen' : `Geldig tot ${fmtDate(s.expiresAt)}`) : 'Onbeperkt geldig'} ·{' '}
+                    {s.views === 1 ? '1 keer bekeken' : `${s.views} keer bekeken`}
+                    {s.lastUsed ? ` · laatst ${fmtDate(s.lastUsed)}` : ''}
+                  </div>
+                </div>
+                <button
+                  className="small danger"
+                  onClick={() => confirm(`Link “${s.label}” intrekken? Wie de link heeft, kan dan niet meer meekijken.`) && run(() => api.deleteShare(s.id), 'Link ingetrokken')}
+                >
+                  Intrekken
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="acc-section">

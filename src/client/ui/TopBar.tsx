@@ -36,6 +36,7 @@ export function TopBar({ house }: { house: House }) {
   const editMode = useApp((s) => s.editMode);
   const setEditMode = useApp((s) => s.setEditMode);
   const setShowLabels = useApp((s) => s.setShowLabels);
+  const viewer = useApp((s) => s.viewer);
 
 
   return (
@@ -116,6 +117,7 @@ export function TopBar({ house }: { house: House }) {
         >
           <Icon name="tag" />
         </button>
+        {!viewer && (
         <button
           className={`icon ${editMode ? '' : 'on'}`}
           onClick={() => setEditMode(!editMode)}
@@ -125,12 +127,22 @@ export function TopBar({ house }: { house: House }) {
         >
           <Icon name={editMode ? 'unlock' : 'lock'} />
         </button>
+        )}
+        <button className={`icon ${panel === 'export' ? 'on' : ''}`} onClick={() => setPanel(panel === 'export' ? null : 'export')} title="Plattegrond afdrukken of downloaden" aria-label="Plattegrond exporteren">
+          <Icon name="print" />
+        </button>
         <SunControl />
         <Compass north={house.north} />
       </div>
 
       <div className="spacer" />
 
+      {viewer ? (
+        <span className="glass viewer-badge" title="Je bekijkt het huis via een gedeelde link">
+          <Icon name="link" size={15} /> Meekijken{viewer !== 'Meekijken' ? ` · ${viewer}` : ''}
+        </span>
+      ) : (
+      <>
       <button className={`glass varbtn ${panel === 'variants' ? 'on' : ''}`} onClick={() => setPanel(panel === 'variants' ? null : 'variants')} title="Indelingen per kamer">
         <Icon name="layers" />
         <span className="varbtn-label">Indelingen</span>
@@ -150,6 +162,8 @@ export function TopBar({ house }: { house: House }) {
         <button className={`user glass ${panel === 'account' ? 'on' : ''}`} title="Account en gebruikers" onClick={() => setPanel(panel === 'account' ? null : 'account')}>
           {user.displayName.slice(0, 1).toUpperCase()}
         </button>
+      )}
+      </>
       )}
     </div>
   );

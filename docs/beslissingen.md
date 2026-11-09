@@ -68,6 +68,13 @@ Antwoorden uit de vragenronde, als basis voor het ontwerp.
 - Een meubel uit de bibliotheek kan in meerdere varianten staan (plaatsing verwijst naar het bibliotheekitem; maat/kleur wijzigen werkt overal door).
 - Claude kan via de MCP een variant aanmaken/aanpassen ("maak een variant van de woonkamer met de groene bank").
 
+## Loopruimte, plattegrond, avond en meekijken (2026-11-09)
+
+- **Loopruimte**: advies ≥ 70 cm voor een doorgang, < 60 cm is krap; deuren hebben 80 cm vrije ruimte nodig aan beide kanten (draairichting is niet overal bekend). Alleen obstakels met een onderkant onder 90 cm tellen mee (geen wandplanken of hanglampen); vloerkleden niet.
+- **Plattegrond** wordt in de browser als SVG gemaakt (geen serverwerk), A4 staand op de grootste schaal die past.
+- **Avondsfeer**: maximaal 14 lampen tegelijk als puntlicht zonder schaduw (prestaties); kappen met afwerking *licht* gloeien op.
+- **Meekijklinks** zijn alleen-lezen en los van gebruikersaccounts: aparte openbare routes onder `/api/view/<token>/…`, token alleen als hash opgeslagen, gasten krijgen meubels zonder prijs/notities/links.
+
 ## Huis aanpassen
 
 - **Geometrie ligt vast:** muren, deuren, ramen en trappen komen uit de plattegrond en zijn in de app niet te bewerken (wel via code/MCP te corrigeren als een maat niet klopt).

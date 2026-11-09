@@ -163,6 +163,9 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   font-family: var(--sans);
 }
 .room-label:hover { border-color: var(--sage); color: #fff; }
+.sel-warn { color: var(--warn); font-size: 12px; }
+.sel-warn::before { content: '⚠ '; }
+
 .room-label.on { background: var(--sage); color: var(--black); border-color: var(--sage); }
 .focus-chip {
   position: absolute; left: 50%; transform: translateX(-50%); top: max(64px, calc(env(safe-area-inset-top) + 56px));
@@ -410,8 +413,10 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   .topbar .user { order: 5; margin-left: auto; width: 34px; height: 34px; font-size: 16px; }
   .topbar .varbtn { order: 2; padding: 8px 11px !important; }
   .varbtn-label { display: none; }
-  .tools button.icon { width: 32px; }
-  .compass { width: 28px; }
+  .tools { gap: 1px; padding: 3px; }
+  .tools button.icon { width: 30px; }
+  .tools button.icon.cam { padding: 0 8px; }
+  .compass { width: 26px; }
   .sun-pop { left: auto; right: -70px; transform: none; }
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: 68vh; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); animation: sheet-in 0.25s ease-out; }
   @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -424,3 +429,28 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 }
 
 .badge.b-model { background: rgba(166, 216, 184, 0.16); color: #bfe3cb; }
+
+/* ---------- plattegrond exporteren ---------- */
+.export-previews { display: grid; gap: 10px; }
+.export-preview { margin: 0; background: #fff; border-radius: 12px; padding: 8px; border: 1px solid var(--line); }
+.export-preview img { display: block; max-width: 100%; max-height: 360px; margin: 0 auto; }
+.export-preview figcaption { color: #444; font-size: 11.5px; text-align: center; padding-top: 4px; }
+
+/* lampen in het zonnepaneel */
+.lamp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lamp-row > span { display: inline-flex; align-items: center; gap: 5px; }
+.seg.mini { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); }
+.seg.mini button { padding: 4px 10px; font-size: 12px; border-radius: 999px; border: 0; background: transparent; }
+.seg.mini button.on { background: var(--sage); color: var(--black); }
+
+/* ---------- meekijken ---------- */
+.viewer-badge { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; color: var(--mint); font-size: 13px; white-space: nowrap; }
+.viewer-fail { position: fixed; inset: 0; display: grid; place-items: center; background: var(--black); padding: 16px; }
+.viewer-fail > div { max-width: 380px; padding: 28px; border-radius: 20px; text-align: center; }
+.viewer-fail h1 { font-family: var(--serif); font-weight: 600; margin: 0 0 10px; }
+.share-new { display: grid; gap: 8px; }
+.share-link { display: flex; gap: 6px; align-items: center; }
+.share-link input { flex: 1; min-width: 0; font-size: 12px; }
+.share-list { display: grid; gap: 6px; margin-top: 8px; }
+.share-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 10px; border-radius: 12px; background: var(--raised); font-size: 13px; }
+.share-row .muted { font-size: 11.5px; }

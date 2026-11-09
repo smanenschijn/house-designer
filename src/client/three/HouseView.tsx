@@ -148,7 +148,7 @@ const LevelMesh = memo(function LevelMesh({ house, index, active, wallMode, azKe
         level.rooms
           .filter((r) => r.label)
           .map((r) => (
-            <Html key={r.id} position={[r.label![0], level.elevation + 0.05, r.label![1]]} center zIndexRange={[10, 0]}>
+            <Html key={r.id} position={[r.label![0], level.elevation + 0.05, r.label![1]]} center zIndexRange={[4, 0]}>
               <button
                 className={`room-label ${roomFocus === r.id ? 'on' : ''}`}
                 title={roomFocus === r.id ? 'Focus opheffen' : `Focus op ${r.name}`}

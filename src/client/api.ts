@@ -80,6 +80,16 @@ export interface StateSnapshot {
   version: number;
 }
 
+export interface ShareInfo {
+  id: string;
+  label: string;
+  createdBy: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  lastUsed: string | null;
+  views: number;
+}
+
 export const api = {
   me: () => req<User>('GET', '/api/me'),
   login: (username: string, password: string) => req<LoginResult>('POST', '/api/auth/login', { username, password }),
@@ -101,6 +111,11 @@ export const api = {
   updateUser: (id: string, input: { displayName?: string; password?: string }) => req<User>('PUT', `/api/users/${id}`, input),
   deleteUser: (id: string) => req<void>('DELETE', `/api/users/${id}`),
   state: () => req<StateSnapshot>('GET', '/api/state'),
+  viewState: (token: string) => req<Omit<StateSnapshot, 'users'> & { label: string }>('GET', `/api/view/${token}/state`),
+  viewVersion: (token: string) => req<{ version: number }>('GET', `/api/view/${token}/version`),
+  shares: () => req<ShareInfo[]>('GET', '/api/shares'),
+  createShare: (label: string, days: number | null) => req<ShareInfo & { token: string }>('POST', '/api/shares', { label, days }),
+  deleteShare: (id: string) => req<void>('DELETE', `/api/shares/${encodeURIComponent(id)}`),
   version: () => req<{ version: number }>('GET', '/api/version'),
   createItem: (input: ItemInput) => req<Item>('POST', '/api/items', input),
   updateItem: (id: string, input: Partial<ItemInput>) => req<Item>('PUT', `/api/items/${id}`, input),

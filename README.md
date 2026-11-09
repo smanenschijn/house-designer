@@ -33,6 +33,13 @@ Later komen daar Claude-koppeling (MCP), rondlopen in 3D en varianten per ruimte
 - **Prijs per variant**: wat er in die variant nog gekocht moet worden.
 - **Rondlopen** (wandelaar-icoon): op ooghoogte door het huis. Laptop: klik in beeld, WASD/pijltjes, Shift = rennen, Esc = muis los. Telefoon/iPad: joystick linksonder, vegen = rondkijken. Je loopt niet door muren, vaste inbouw of meubels; wel door deuren (ook naar buiten). Wissel van verdieping met de knoppen bovenin.
 
+## Loopruimte, plattegrond, avond en meekijken (fase 5)
+
+- **Loopruimte**: bij een geselecteerd (of gesleept) meubel zie je maatlijnen naar de dichtstbijzijnde muur, inbouw of ander meubel. Oranje onder 70 cm, rood onder 60 cm. De selectiebalk waarschuwt als een meubel voor een deur staat (80 cm vrij aan beide kanten) of als de doorgang krap is. Claude krijgt dezelfde informatie bij het plaatsen.
+- **Plattegrond** (printer-icoon): per verdieping een tekening met muren, ramen, deuren met draairichting, kamers met oppervlakte en maten, buitenmaten, noordpijl en schaalstok. Afdrukken/PDF op A4 op schaal (1:50, 1:75 of 1:100, automatisch), of als PNG/SVG downloaden. Meubels van de actieve indelingen kunnen mee.
+- **Avondsfeer**: lampen (onderdelen met afwerking *licht*, of meubels in de categorie verlichting) gaan na zonsondergang branden en geven warm licht. In het zonnepaneel: *Avond* en lampen *Auto/Aan/Uit*.
+- **Meekijklinks** (Account → Meekijklinks): een link voor familie of vrienden om zonder account rond te kijken, rond te lopen en de plattegrond af te drukken, zonder iets te kunnen veranderen. Prijzen, notities en links zien gasten niet. Geldig 1 week, 1 maand, 1 jaar of onbeperkt; intrekken kan altijd. De link wordt één keer getoond (alleen een hash wordt bewaard).
+
 ## Claude koppelen (fase 2)
 
 1. Ga in claude.ai naar **Instellingen → Connectors → Eigen connector toevoegen** en vul in: `https://huis.<jouwdomein>/mcp` (staat ook in de app onder *Account → Claude koppelen*).
