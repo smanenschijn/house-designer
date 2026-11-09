@@ -131,7 +131,7 @@ function placementInfo(pid: string) {
     height_above_floor_cm: Math.round((p.y ?? 0) * 100),
     standing_on: (() => {
       if (!it || (p.y ?? 0) < 0.005) return 'vloer';
-      const s = findSupport(level, p, it, p.id, visible(), all);
+      const s = findSupport(level, p, it, p.id, visible(), all, p.y ?? 0);
       return Math.abs(s.y - (p.y ?? 0)) < 0.02 && s.on ? s.on : 'zwevend (eigen hoogte)';
     })(),
     variant: variant ? `${variant.name}${isPlacementVisible(p.variantId, listVariants(), activeMap()) ? '' : ' (niet actief)'}` : 'buiten',
@@ -442,7 +442,7 @@ export function buildMcpServer(user: PublicUser) {
       const others = vis.filter((q) => !riders.some((r) => r.id === q.id));
       const y =
         height_m ??
-        (isResting(oldLevel, p, it, vis, all) ? findSupport(lv, { x: nx, z: nz, rotation: rot }, it, p.id, others, all).y : (p.y ?? 0));
+        (isResting(oldLevel, p, it, vis, all) ? findSupport(lv, { x: nx, z: nz, rotation: rot }, it, p.id, others, all, p.y ?? 0).y : (p.y ?? 0));
       actor(`“${it.name}” verplaatst`);
       updatePlacement(placement_id, { x: nx, z: nz, rotation: rot, levelId: lv.id, y });
       for (const r of riders) updatePlacement(r.id, { x: r.x + (nx - p.x), z: r.z + (nz - p.z), y: (r.y ?? 0) + (y - (p.y ?? 0)), levelId: lv.id });

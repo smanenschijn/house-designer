@@ -19,7 +19,7 @@ function restingY(p: Placement, next: { x: number; z: number; rotation: number }
   if (!level || !it) return p.y ?? 0;
   const visible = visiblePlacements(st);
   if (!isResting(level, p, it, visible, st.items)) return p.y ?? 0;
-  return findSupport(level, next, it, p.id, visible, st.items).y;
+  return findSupport(level, next, it, p.id, visible, st.items, p.y ?? 0).y;
 }
 
 /** Plaats een bibliotheekitem midden in beeld op de actieve verdieping. */

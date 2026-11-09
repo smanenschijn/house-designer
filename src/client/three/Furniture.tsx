@@ -386,7 +386,7 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       let y = p.y ?? 0;
       if (drag.resting && !e.altKey) {
         const others = visiblePlacements(st).filter((q) => q.id !== drag!.id && !drag!.riders.some((r) => r.id === q.id));
-        y = findSupport(lvl, { x, z, rotation: rot }, it, drag.id, others, st.items).y;
+        y = findSupport(lvl, { x, z, rotation: rot }, it, drag.id, others, st.items, p.y ?? 0).y;
       }
       st.patchPlacementLocal(drag.id, { x, z, rotation: rot, y });
       const dx = x - drag.orig.x;

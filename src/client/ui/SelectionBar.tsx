@@ -28,7 +28,7 @@ export function SelectionBar({ house }: { house: House }) {
     if (!placement || !item || (placement.y ?? 0) < 0.005) return null;
     const lv = house.levels.find((l) => l.id === placement.levelId);
     if (!lv) return null;
-    const s = findSupport(lv, placement, item, placement.id, visiblePlacements({ placements, variants, active }), items);
+    const s = findSupport(lv, placement, item, placement.id, visiblePlacements({ placements, variants, active }), items, placement.y ?? 0);
     return Math.abs(s.y - (placement.y ?? 0)) < 0.02 && s.on ? `staat op ${s.on}` : `${Math.round((placement.y ?? 0) * 100)} cm boven de vloer`;
   }, [house, placement, item, placements, variants, active, items]);
   const setSnap = useApp((s) => s.setSnap);

@@ -15,6 +15,7 @@ import { waalstraat16 } from '../shared/waalstraat16';
 import { chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CATEGORIES, type Category } from '../shared/recipe';
+import { liftOntoSupports } from '../shared/stacking';
 import { createShare, deleteShare, initShares, listShares, shareByToken } from './shares';
 import type { Item } from '../shared/recipe';
 import { MAX_MODEL_BYTES, ModelError, clearModel, deleteItemWithModel, readModelFile, redeemUploadTicket, saveModel, updateModelSettings } from './models';
@@ -48,6 +49,12 @@ initVariants(waalstraat16);
 initShares();
 ensureFirstUser();
 seedLibrary();
+
+// bestaande meubels die in een tafel/kast/zwevende inbouw staan, erop zetten (zie stacking.ts)
+for (const l of liftOntoSupports(waalstraat16.levels, listPlacements(), listItems())) {
+  updatePlacement(l.id, { y: l.y });
+  console.log(`[neerzetten] ${l.id} op ${l.on} (${Math.round(l.y * 100)} cm)`);
+}
 
 const app = new Hono<AuthEnv>();
 

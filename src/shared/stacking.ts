@@ -9,10 +9,10 @@ import { corners, pointInPolygon } from './placement';
 
 /** wat nooit vanzelf op iets anders wordt gezet */
 const NEVER_ON_TOP: Category[] = ['bank', 'stoel', 'fauteuil', 'bed', 'tafel', 'vloerkleed'];
-/** hoger dan dit zet je niets meer neer (bovenkant hoge kast) */
-const MAX_SURFACE = 2.0;
 /** speling: zo ver mag het meubel over de rand steken */
 const OVERHANG = 0.03;
+/** kasten die lager dan dit beginnen (zwevende lowboard, tv-meubel) gelden als staand: iets eronder komt erop */
+const LOW_HANGING = 1.0;
 
 export interface Support {
   /** hoogte van het oppervlak boven de verdiepingsvloer (0 = vloer) */
@@ -56,16 +56,20 @@ export function findSupport(
   self: string | null,
   placements: Placement[],
   items: Item[],
+  /** huidige hoogte: staat het al op een hoge kast, dan blijft het daarop zolang het past */
+  currentY = 0,
 ): Support {
   if (!canStack(item)) return FLOOR;
   const s = item.recipe.size;
   const foot = corners({ x: pos.x, z: pos.z, hw: s.width / 2, hd: s.depth / 2, rot: pos.rotation });
   const center: V2 = [pos.x, pos.z];
   const area = s.width * s.depth;
-  let best: Support = FLOOR;
-  const consider = (name: string, poly: V2[], top: number, surfaceArea: number) => {
-    if (top <= best.y || top > MAX_SURFACE || surfaceArea < area * 0.9) return;
-    if (fitsOn(foot, center, poly)) best = { y: Math.round(top * 1000) / 1000, on: name };
+  // oppervlakken waar het helemaal op past, met hun onderkant
+  const cands: { name: string; top: number; bottom: number }[] = [];
+  const consider = (name: string, poly: V2[], bottom: number, top: number, surfaceArea: number) => {
+    // moet er nog onder het plafond passen (ook bovenop een hoge kast of hangkast)
+    if (top + s.height > level.ceilingHeight + 0.01 || surfaceArea < area * 0.9) return;
+    if (fitsOn(foot, center, poly)) cands.push({ name, top, bottom });
   };
   const itemMap = new Map(items.map((i) => [i.id, i]));
   for (const p of placements) {
@@ -73,14 +77,32 @@ export function findSupport(
     const it = itemMap.get(p.itemId);
     if (!it || it.recipe.size.height <= 0.03) continue; // vloerkleed
     const sz = it.recipe.size;
-    const top = (p.y ?? 0) + (it.recipe.elevation ?? 0) + sz.height;
-    consider(it.name, corners({ x: p.x, z: p.z, hw: sz.width / 2, hd: sz.depth / 2, rot: p.rotation }), top, sz.width * sz.depth);
+    const bottom = (p.y ?? 0) + (it.recipe.elevation ?? 0);
+    consider(it.name, corners({ x: p.x, z: p.z, hw: sz.width / 2, hd: sz.depth / 2, rot: p.rotation }), bottom, bottom + sz.height, sz.width * sz.depth);
   }
   for (const fx of level.fixtures) {
     const sz = fx.recipe.size;
     if (sz.height < 0.05 || fx.name === 'Trap' || fx.name.startsWith('Trap')) continue;
-    const top = (fx.y ?? 0) + sz.height;
-    consider(fx.name, corners({ x: fx.position[0], z: fx.position[1], hw: sz.width / 2, hd: sz.depth / 2, rot: fx.rotation ?? 0 }), top, sz.width * sz.depth);
+    const bottom = fx.y ?? 0;
+    consider(fx.name, corners({ x: fx.position[0], z: fx.position[1], hw: sz.width / 2, hd: sz.depth / 2, rot: fx.rotation ?? 0 }), bottom, bottom + sz.height, sz.width * sz.depth);
+  }
+  // van de vloer omhoog "laten zakken": het komt op het eerste oppervlak waar het anders doorheen zou steken.
+  // Lage zwevende kasten (lowboard, tv-meubel) tellen alsof ze tot de vloer lopen; een hoog hangende kast
+  // alleen als het ding er al op stond (dan blijft het erop).
+  cands.sort((p, q) => p.top - q.top);
+  let best: Support = FLOOR;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const c of cands) {
+      if (c.top <= best.y + 0.005) continue;
+      const effBottom = c.bottom < LOW_HANGING ? 0 : c.bottom;
+      const through = best.y + s.height > effBottom + 0.005;
+      const wasOnIt = Math.abs(currentY - c.top) < 0.02;
+      if (through || wasOnIt) {
+        best = { y: Math.round(c.top * 1000) / 1000, on: c.name };
+        changed = true;
+      }
+    }
   }
   return best;
 }
@@ -94,7 +116,7 @@ export function isResting(
   items: Item[],
 ): boolean {
   if ((p.y ?? 0) < 0.005) return true;
-  const s = findSupport(level, p, item, p.id, placements, items);
+  const s = findSupport(level, p, item, p.id, placements, items, p.y ?? 0);
   return Math.abs(s.y - (p.y ?? 0)) < 0.02;
 }
 
@@ -105,4 +127,26 @@ export function isOnTop(rider: Placement, riderItem: Item, carrier: Placement, c
   if (Math.abs((rider.y ?? 0) - top) > 0.02) return false;
   const s = carrierItem.recipe.size;
   return pointInPolygon([rider.x, rider.z], corners({ x: carrier.x, z: carrier.z, hw: s.width / 2, hd: s.depth / 2, rot: carrier.rotation }));
+}
+
+/**
+ * Bestaande meubels rechtzetten: iets dat op de vloer staat maar dwars door een tafel, kast of
+ * (zwevende) inbouw heen steekt waar het helemaal op past, komt erop te staan.
+ * Alleen tegen meubels uit dezelfde indeling (variant) en vaste inbouw.
+ */
+export function liftOntoSupports(levels: Level[], placements: Placement[], items: Item[]): { id: string; y: number; on: string }[] {
+  const itemMap = new Map(items.map((i) => [i.id, i]));
+  const out: { id: string; y: number; on: string }[] = [];
+  for (const p of placements) {
+    if ((p.y ?? 0) > 0.005) continue;
+    const it = itemMap.get(p.itemId);
+    const level = levels.find((l) => l.id === p.levelId);
+    if (!it || !level || !canStack(it)) continue;
+    const same = placements.filter((q) => q.variantId === p.variantId);
+    const s = findSupport(level, p, it, p.id, same, items);
+    // alleen als het nu echt in dat meubel/die kast zit (onderkant van het oppervlak lager dan de bovenkant van het ding)
+    if (!s.on || s.y <= 0.005) continue;
+    out.push({ id: p.id, y: s.y, on: s.on });
+  }
+  return out;
 }
