@@ -4,7 +4,7 @@ import { waalstraat16 } from '../../shared/waalstraat16';
 import type { Item } from '../../shared/recipe';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
-import { findSupport, isResting } from '../../shared/stacking';
+import { bottomOf, findSupport, isResting, placementY } from '../../shared/stacking';
 import type { Placement } from '../../shared/recipe';
 import { viewState } from '../viewState';
 
@@ -19,7 +19,7 @@ function restingY(p: Placement, next: { x: number; z: number; rotation: number }
   if (!level || !it) return p.y ?? 0;
   const visible = visiblePlacements(st);
   if (!isResting(level, p, it, visible, st.items)) return p.y ?? 0;
-  return findSupport(level, next, it, p.id, visible, st.items, p.y ?? 0).y;
+  return placementY(it, findSupport(level, next, it, p.id, visible, st.items, bottomOf(p, it)));
 }
 
 /** Plaats een bibliotheekitem midden in beeld op de actieve verdieping. */
@@ -40,7 +40,7 @@ export async function placeItem(house: House, item: Item) {
   }
   li = house.levels.indexOf(level);
   // midden in beeld staat een tafel? dan komt de plant erop
-  const y = findSupport(level, { x, z, rotation: 0 }, item, null, visiblePlacements(useApp.getState()), useApp.getState().items).y;
+  const y = placementY(item, findSupport(level, { x, z, rotation: 0 }, item, null, visiblePlacements(useApp.getState()), useApp.getState().items));
   const p = await attempt(() => api.createPlacement({ itemId: item.id, levelId: level.id, x, z, rotation: 0, y }));
   if (p) {
     useApp.getState().upsertPlacement(p);

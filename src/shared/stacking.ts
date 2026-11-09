@@ -27,8 +27,19 @@ export const FLOOR: Support = { y: 0, on: null };
 export function canStack(it: Item): boolean {
   if (NEVER_ON_TOP.includes(it.category)) return false;
   const r = it.recipe;
-  if (r.mount === 'wall' || r.mount === 'ceiling' || (r.elevation ?? 0) > 0) return false; // hangt al op eigen hoogte
+  // hangt aan de muur/het plafond of op een flinke eigen hoogte: niet verplaatsen.
+  // Een kleine standaardhoogte (bijv. een platenspeler op 60 cm) mag wel: die gaat dan op wat eronder staat.
+  if (r.mount === 'wall' || r.mount === 'ceiling' || (r.elevation ?? 0) >= 1.0) return false;
   return r.size.height > 0.03;
+}
+
+/** onderkant van een geplaatst meubel boven de verdiepingsvloer */
+export const bottomOf = (p: Pick<Placement, 'y'>, it: Item) => (p.y ?? 0) + (it.recipe.elevation ?? 0);
+
+/** de y van de plaatsing die hoort bij een ondergrond (rekening houdend met de standaardhoogte van het meubel) */
+export function placementY(it: Item, s: Support): number {
+  if (!s.on) return 0;
+  return Math.max(0, Math.round((s.y - (it.recipe.elevation ?? 0)) * 1000) / 1000);
 }
 
 /** ligt een rechthoek helemaal binnen een polygoon (met wat speling)? */
@@ -116,15 +127,15 @@ export function isResting(
   items: Item[],
 ): boolean {
   if ((p.y ?? 0) < 0.005) return true;
-  const s = findSupport(level, p, item, p.id, placements, items, p.y ?? 0);
-  return Math.abs(s.y - (p.y ?? 0)) < 0.02;
+  const s = findSupport(level, p, item, p.id, placements, items, bottomOf(p, item));
+  return Math.abs(s.y - bottomOf(p, item)) < 0.02;
 }
 
 /** staat `rider` op `carrier`? (midden binnen de bovenkant en op de juiste hoogte) */
 export function isOnTop(rider: Placement, riderItem: Item, carrier: Placement, carrierItem: Item): boolean {
   if (rider.id === carrier.id || rider.levelId !== carrier.levelId || !canStack(riderItem)) return false;
   const top = (carrier.y ?? 0) + (carrierItem.recipe.elevation ?? 0) + carrierItem.recipe.size.height;
-  if (Math.abs((rider.y ?? 0) - top) > 0.02) return false;
+  if (Math.abs(bottomOf(rider, riderItem) - top) > 0.02) return false;
   const s = carrierItem.recipe.size;
   return pointInPolygon([rider.x, rider.z], corners({ x: carrier.x, z: carrier.z, hw: s.width / 2, hd: s.depth / 2, rot: carrier.rotation }));
 }
@@ -144,9 +155,11 @@ export function liftOntoSupports(levels: Level[], placements: Placement[], items
     if (!it || !level || !canStack(it)) continue;
     const same = placements.filter((q) => q.variantId === p.variantId);
     const s = findSupport(level, p, it, p.id, same, items);
-    // alleen als het nu echt in dat meubel/die kast zit (onderkant van het oppervlak lager dan de bovenkant van het ding)
-    if (!s.on || s.y <= 0.005) continue;
-    out.push({ id: p.id, y: s.y, on: s.on });
+    if (!s.on) continue;
+    const y = placementY(it, s);
+    // alleen als het daarmee echt op dat oppervlak komt te staan (en niet al goed staat)
+    if (y <= 0.005 || Math.abs(y + (it.recipe.elevation ?? 0) - s.y) > 0.02) continue;
+    out.push({ id: p.id, y, on: s.on });
   }
   return out;
 }

@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkRecipe, describeHouse, findCollisions, findRoom, roomCenter, roomOf } from '../shared/analysis';
 import { clearance, clearanceWarnings } from '../shared/clearance';
-import { findSupport, isOnTop, isResting } from '../shared/stacking';
+import { bottomOf, findSupport, isOnTop, isResting, placementY } from '../shared/stacking';
 import { snapToWalls } from '../shared/placement';
 import { CATEGORIES, FINISHES, RecipeSchema, STATUSES, type Item, type Recipe } from '../shared/recipe';
 import { TEMPLATES, TEMPLATE_MAP, buildFromTemplate } from '../shared/templates';
@@ -130,9 +130,10 @@ function placementInfo(pid: string) {
     rotation: Math.round(p.rotation),
     height_above_floor_cm: Math.round((p.y ?? 0) * 100),
     standing_on: (() => {
-      if (!it || (p.y ?? 0) < 0.005) return 'vloer';
-      const s = findSupport(level, p, it, p.id, visible(), all, p.y ?? 0);
-      return Math.abs(s.y - (p.y ?? 0)) < 0.02 && s.on ? s.on : 'zwevend (eigen hoogte)';
+      if (!it) return 'vloer';
+      const s = findSupport(level, p, it, p.id, visible(), all, bottomOf(p, it));
+      if (s.on && Math.abs(s.y - bottomOf(p, it)) < 0.02) return s.on;
+      return bottomOf(p, it) < 0.005 ? 'vloer' : 'zwevend (eigen hoogte)';
     })(),
     variant: variant ? `${variant.name}${isPlacementVisible(p.variantId, listVariants(), activeMap()) ? '' : ' (niet actief)'}` : 'buiten',
     collisions: collisions.length ? collisions : 'geen',
@@ -393,7 +394,7 @@ export function buildMcpServer(user: PublicUser) {
         pz = s.z;
         rot = s.rot;
       }
-      const y = height_m ?? findSupport(lv, { x: px, z: pz, rotation: rot }, it, null, visible(), listItems()).y;
+      const y = height_m ?? placementY(it, findSupport(lv, { x: px, z: pz, rotation: rot }, it, null, visible(), listItems()));
       actor(`“${it.name}” geplaatst`);
       const p = createPlacement({ itemId: it.id, levelId: lv.id, x: px, z: pz, rotation: rot, y }, user.id);
       return json(placementInfo(p.id));
@@ -442,7 +443,7 @@ export function buildMcpServer(user: PublicUser) {
       const others = vis.filter((q) => !riders.some((r) => r.id === q.id));
       const y =
         height_m ??
-        (isResting(oldLevel, p, it, vis, all) ? findSupport(lv, { x: nx, z: nz, rotation: rot }, it, p.id, others, all, p.y ?? 0).y : (p.y ?? 0));
+        (isResting(oldLevel, p, it, vis, all) ? placementY(it, findSupport(lv, { x: nx, z: nz, rotation: rot }, it, p.id, others, all, bottomOf(p, it))) : (p.y ?? 0));
       actor(`“${it.name}” verplaatst`);
       updatePlacement(placement_id, { x: nx, z: nz, rotation: rot, levelId: lv.id, y });
       for (const r of riders) updatePlacement(r.id, { x: r.x + (nx - p.x), z: r.z + (nz - p.z), y: (r.y ?? 0) + (y - (p.y ?? 0)), levelId: lv.id });

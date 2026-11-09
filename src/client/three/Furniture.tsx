@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { House } from '../../shared/house';
 import type { Item, Placement } from '../../shared/recipe';
 import { pointInPolygon, snapToWalls } from '../../shared/placement';
-import { findSupport, isOnTop, isResting } from '../../shared/stacking';
+import { bottomOf, findSupport, isOnTop, isResting, placementY } from '../../shared/stacking';
 import { findCollisions } from '../../shared/analysis';
 import { api } from '../api';
 import { attempt, useApp, visiblePlacements } from '../store';
@@ -386,7 +386,7 @@ function useFurnitureDrag(house: House, groupRef: React.RefObject<THREE.Group | 
       let y = p.y ?? 0;
       if (drag.resting && !e.altKey) {
         const others = visiblePlacements(st).filter((q) => q.id !== drag!.id && !drag!.riders.some((r) => r.id === q.id));
-        y = findSupport(lvl, { x, z, rotation: rot }, it, drag.id, others, st.items, p.y ?? 0).y;
+        y = placementY(it, findSupport(lvl, { x, z, rotation: rot }, it, drag.id, others, st.items, bottomOf(p, it)));
       }
       st.patchPlacementLocal(drag.id, { x, z, rotation: rot, y });
       const dx = x - drag.orig.x;
