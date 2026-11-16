@@ -517,7 +517,6 @@ export const waalstraat16: House = {
       // omgeving
       { kind: 'boom', position: [-11.5, -19], height: 11, spread: 7, seed: 1 },
       { kind: 'boom', position: [12, -19], height: 9, spread: 6, seed: 2 },
-      { kind: 'treurwilg', position: [14.5, -4], height: 10, spread: 8, seed: 4 },
     ],
     fixtures: [
       fx('carport-p1', 'Carportpaal', paal(2.45), -4.1, 3.55),

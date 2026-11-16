@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
-import type { House, Level } from '../../shared/house';
+import type { House, Level, Plant } from '../../shared/house';
 import { useApp } from '../store';
 import {
   STUB,
@@ -47,6 +47,9 @@ function wallGroup(level: Level, cut: number | null, finishAt: FaceFinishAt): TH
   g.add(mergeByMaterial(buildOpenings(level, () => cut)));
   return g;
 }
+
+/** hoge boompjes vóór het huis (ontnemen het zicht bij het inrichten) */
+const isFrontTree = (p: Plant) => p.kind === 'bolboom';
 
 function disposeTree(o: THREE.Object3D) {
   o.traverse((x) => {
@@ -181,10 +184,13 @@ export function HouseView({ house }: { house: House }) {
     g.add(buildFloors(house.outdoor.areas, -0.025, 0, 0, 0.003));
     g.add(buildGardenFences(house.outdoor.fences));
     g.add(buildRaised(house.outdoor.raised ?? []));
-    g.add(buildPlants(house.outdoor.plants ?? []));
+    g.add(buildPlants((house.outdoor.plants ?? []).filter((p) => !isFrontTree(p))));
     g.add(buildFixtures(house.outdoor.fixtures, 0, true));
     return mergeByMaterial(g);
   }, [house]);
+  // bolbomen in de voortuin: weg bij "Muren weg" en "laag", zodat je vrij zicht hebt bij het inrichten
+  const frontTrees = useMemo(() => mergeByMaterial(buildPlants((house.outdoor.plants ?? []).filter(isFrontTree))), [house]);
+  const hideFrontTrees = !showAll && wallMode !== 'up';
   const roofs = useMemo(() => mergeByMaterial(buildRoofs(house.roofs)), [house]);
   const neighbors = useMemo(() => buildNeighbors(house), [house]);
   // schaduwmodel: altijd aanwezig, onzichtbaar
@@ -203,6 +209,7 @@ export function HouseView({ house }: { house: House }) {
         <planeGeometry args={[(b.x1 - b.x0) * 4, (b.z1 - b.z0) * 4]} />
       </mesh>
       <primitive object={outdoor} />
+      {!hideFrontTrees && <primitive object={frontTrees} />}
       <primitive object={shadowProxy} />
       {house.levels.map((_, i) =>
         i <= activeIndex ? (
